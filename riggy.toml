@@ -1,0 +1,10 @@
+# riggy settings; changes to [idle], [blink] and [mouth] apply while running.
+
+[avatar]
+kind = "glb"
+path = "assets/models/cyborg_girl.glb"
+mapping = "assets/avatars/cyborg_girl.toml"
+
+[window]
+width = 400
+height = 700

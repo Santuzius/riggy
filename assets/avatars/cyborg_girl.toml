@@ -1,0 +1,34 @@
+# Cyborg girl (Auto-Rig-Pro rig, Sketchfab export). Repair the rest pose first: tools/fix_bind_pose.py.
+# Avatar space: +Y up, +Z the way she faces, +X her left; model units are millimetres.
+
+scale = 0.001
+
+[humanoid]
+hips = "root.x"
+spine = "spine_02.x"
+chest = "spine_03.x"
+upperChest = "spine_04.x"
+neck = "neck.x"
+head = "head.x"
+jaw = "c_jawbone.x"
+leftEye = "c_eye.l"
+rightEye = "c_eye.r"
+leftShoulder = "shoulder.l"
+leftUpperArm = "arm_stretch.l"
+leftLowerArm = "forearm_stretch.l"
+leftHand = "hand.l"
+rightShoulder = "shoulder.r"
+rightUpperArm = "arm_stretch.r"
+rightLowerArm = "forearm_stretch.r"
+rightHand = "hand.r"
+leftUpperLeg = "thigh_stretch.l"
+leftLowerLeg = "leg_stretch.l"
+leftFoot = "foot.l"
+leftToes = "toes_01.l"
+rightUpperLeg = "thigh_stretch.r"
+rightLowerLeg = "leg_stretch.r"
+rightFoot = "foot.r"
+rightToes = "toes_01.r"
+
+# Expressions (bone changes at weight 1) follow in iterations 2 and 3.
+[expressions]
