@@ -30,5 +30,34 @@ rightLowerLeg = "leg_stretch.r"
 rightFoot = "foot.r"
 rightToes = "toes_01.r"
 
-# Expressions (bone changes at weight 1) follow in iterations 2 and 3.
-[expressions]
+# Expressions: bone changes at weight 1, in avatar space (rotate: axis-angle in degrees, translate: mm).
+# The eyelid bones pivot in the eyeball centre; a rotation about +X swings the lid down over the eye.
+[expressions.blink]
+"c_eyelid_top_01.l" = { rotate = [44, 0, 0] }
+"c_eyelid_top_02.l" = { rotate = [44, 0, 0] }
+"c_eyelid_top_03.l" = { rotate = [44, 0, 0] }
+"c_eyelid_bot_01.l" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_02.l" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_03.l" = { rotate = [-10, 0, 0] }
+"c_eyelid_top_01.r" = { rotate = [44, 0, 0] }
+"c_eyelid_top_02.r" = { rotate = [44, 0, 0] }
+"c_eyelid_top_03.r" = { rotate = [44, 0, 0] }
+"c_eyelid_bot_01.r" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_02.r" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_03.r" = { rotate = [-10, 0, 0] }
+
+[expressions.blinkLeft]
+"c_eyelid_top_01.l" = { rotate = [44, 0, 0] }
+"c_eyelid_top_02.l" = { rotate = [44, 0, 0] }
+"c_eyelid_top_03.l" = { rotate = [44, 0, 0] }
+"c_eyelid_bot_01.l" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_02.l" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_03.l" = { rotate = [-10, 0, 0] }
+
+[expressions.blinkRight]
+"c_eyelid_top_01.r" = { rotate = [44, 0, 0] }
+"c_eyelid_top_02.r" = { rotate = [44, 0, 0] }
+"c_eyelid_top_03.r" = { rotate = [44, 0, 0] }
+"c_eyelid_bot_01.r" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_02.r" = { rotate = [-10, 0, 0] }
+"c_eyelid_bot_03.r" = { rotate = [-10, 0, 0] }

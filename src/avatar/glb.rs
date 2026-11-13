@@ -295,17 +295,21 @@ fn reload_mapping(time: Res<Time>, watch: Option<ResMut<MappingWatch>>, mut rigs
     }
 }
 
-/// F1 prints the model's node tree with avatar-space joint positions.
+/// F1 (or `RIGGY_DUMP_NODES` at startup) prints the model's node tree with avatar-space joint positions.
 fn dump_nodes(
     keys: Res<ButtonInput<KeyCode>>,
+    mut dumped: Local<bool>,
     roots: Query<Entity, With<GlbRig>>,
     children: Query<&Children>,
     names: Query<&Name>,
     tree: TransformTree,
 ) {
-    if !keys.just_pressed(KeyCode::F1) {
+    // `RIGGY_DUMP_NODES=1` dumps once right after loading.
+    let auto = !*dumped && std::env::var_os("RIGGY_DUMP_NODES").is_some() && !roots.is_empty();
+    if !keys.just_pressed(KeyCode::F1) && !auto {
         return;
     }
+    *dumped = true;
     fn walk(entity: Entity, depth: usize, out: &mut String, children: &Query<&Children>, names: &Query<&Name>, tree: &TransformTree) {
         if let Ok(name) = names.get(entity) {
             let p = avatar_space(entity, tree).translation;

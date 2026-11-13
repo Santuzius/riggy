@@ -1,7 +1,9 @@
 //! riggy: a desktop mascot that idles and lip-syncs to text-to-speech output.
 
 mod avatar;
+mod blink;
 mod config;
+mod idle;
 mod view;
 
 use bevy::prelude::*;
@@ -23,6 +25,6 @@ fn main() {
     }))
     .insert_resource(ClearColor(Color::srgba(r, g, b, a)))
     .insert_resource(config)
-    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, view::ViewPlugin))
+    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, idle::IdlePlugin, blink::BlinkPlugin, view::ViewPlugin))
     .run();
 }

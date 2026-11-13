@@ -5,6 +5,7 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
+use crate::config::Config;
 
 /// Relative margin around the figure in the full view.
 const MARGIN: f32 = 0.06;
@@ -40,8 +41,12 @@ struct Shot {
     height: f32,
 }
 
-fn setup(mut commands: Commands) {
-    commands.spawn((Camera3d::default(), Framing::default(), Transform::from_xyz(0.0, 1.0, 4.0)));
+fn setup(mut commands: Commands, config: Res<Config>) {
+    let framing = Framing {
+        zoom: config.window.zoom.clamp(0.0, 1.0),
+        ..default()
+    };
+    commands.spawn((Camera3d::default(), framing, Transform::from_xyz(0.0, 1.0, 4.0)));
     // Key light from the front left above, fill from the right, rim from behind.
     commands.spawn((
         DirectionalLight {

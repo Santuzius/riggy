@@ -17,6 +17,15 @@ pub struct Config {
     pub blink: BlinkConfig,
     pub mouth: MouthConfig,
     pub speech: SpeechConfig,
+    pub debug: DebugConfig,
+}
+
+/// Tuning aids.
+#[derive(Deserialize, Clone, Debug, Default)]
+#[serde(default)]
+pub struct DebugConfig {
+    /// Expression weights forced on top of blink and mouth, e.g. `{ blink = 1.0 }`.
+    pub expressions: std::collections::HashMap<String, f32>,
 }
 
 #[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -59,6 +68,8 @@ pub struct WindowConfig {
     pub click_through: bool,
     /// Background colour as sRGB with alpha, used when `transparent` is off.
     pub background: [f32; 4],
+    /// Zoom at startup: 0 shows the whole figure, 1 the face (the mouse wheel changes it).
+    pub zoom: f32,
 }
 
 impl Default for WindowConfig {
@@ -70,6 +81,7 @@ impl Default for WindowConfig {
             always_on_top: false,
             click_through: false,
             background: [0.08, 0.08, 0.10, 1.0],
+            zoom: 0.0,
         }
     }
 }
@@ -86,8 +98,8 @@ pub struct IdleConfig {
     pub sway_angle: f32,
     pub head_rate: f32,
     pub head_angle: f32,
-    /// Extra downward rotation of the upper arms from the rest pose (positive lowers the arms).
-    pub arm_down_angle: f32,
+    /// Angle of the upper arms out from vertical, whatever the rest pose (T or A pose) is.
+    pub arm_angle: f32,
     /// Bend of the elbows.
     pub elbow_angle: f32,
 }
@@ -102,8 +114,8 @@ impl Default for IdleConfig {
             sway_angle: 1.2,
             head_rate: 0.15,
             head_angle: 2.5,
-            arm_down_angle: 0.0,
-            elbow_angle: 0.0,
+            arm_angle: 12.0,
+            elbow_angle: 8.0,
         }
     }
 }

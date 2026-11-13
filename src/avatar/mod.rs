@@ -220,6 +220,8 @@ pub enum AvatarSet {
     Pose,
     /// Blink and mouth code set expression weights.
     Express,
+    /// Weights forced from `[debug] expressions` in `riggy.toml` override them.
+    Override,
     /// The backend turns expression weights into bone or morph changes.
     Apply,
 }
@@ -228,8 +230,20 @@ pub struct AvatarPlugin;
 
 impl Plugin for AvatarPlugin {
     fn build(&self, app: &mut App) {
-        app.configure_sets(Update, (AvatarSet::Reset, AvatarSet::Pose, AvatarSet::Express, AvatarSet::Apply).chain())
+        app.configure_sets(Update, (AvatarSet::Reset, AvatarSet::Pose, AvatarSet::Express, AvatarSet::Override, AvatarSet::Apply).chain())
+            .add_systems(Update, force_expressions.in_set(AvatarSet::Override))
             .add_plugins(glb::GlbAvatarPlugin);
+    }
+}
+
+fn force_expressions(config: Res<crate::config::Config>, mut avatars: Query<&mut Expressions>) {
+    if config.debug.expressions.is_empty() {
+        return;
+    }
+    for mut expressions in &mut avatars {
+        for (name, &weight) in &config.debug.expressions {
+            expressions.set(name.parse::<ExpressionName>().unwrap(), weight);
+        }
     }
 }
 
