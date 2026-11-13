@@ -1,0 +1,5 @@
+target/
+assets/models/
+temp/
+.direnv/
+riggy.local.toml
