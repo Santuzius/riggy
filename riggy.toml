@@ -1,4 +1,4 @@
-# riggy settings; changes to [idle], [blink] and [mouth] apply while running.
+# riggy settings; changes to [idle], [blink], [mouth] and [debug] apply while running.
 
 [avatar]
 kind = "glb"
@@ -26,6 +26,10 @@ elbow_angle = 8.0
 min_interval = 2.0
 max_interval = 6.0
 duration = 0.15
+
+# Mouth: smoothing time constant of the mouth shapes in seconds.
+[mouth]
+time_constant = 0.04
 
 # Tuning aid: force expression weights, e.g. expressions = { blink = 1.0 }.
 [debug]

@@ -4,6 +4,7 @@ mod avatar;
 mod blink;
 mod config;
 mod idle;
+mod mouth;
 mod view;
 
 use bevy::prelude::*;
@@ -25,6 +26,6 @@ fn main() {
     }))
     .insert_resource(ClearColor(Color::srgba(r, g, b, a)))
     .insert_resource(config)
-    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, idle::IdlePlugin, blink::BlinkPlugin, view::ViewPlugin))
+    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, idle::IdlePlugin, blink::BlinkPlugin, mouth::MouthPlugin, view::ViewPlugin))
     .run();
 }

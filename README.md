@@ -20,3 +20,7 @@ python3 tools/fix_bind_pose.py ~/Downloads/cyborg_girl/cyborg_girl.glb assets/mo
 ```
 
 `python3` with NumPy is part of the Nix shell.
+
+## Development
+
+[doc/development.md](doc/development.md) covers live reloading, debug keys, node dumps and screenshots.

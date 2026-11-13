@@ -61,3 +61,73 @@ rightToes = "toes_01.r"
 "c_eyelid_bot_01.r" = { rotate = [-10, 0, 0] }
 "c_eyelid_bot_02.r" = { rotate = [-10, 0, 0] }
 "c_eyelid_bot_03.r" = { rotate = [-10, 0, 0] }
+
+# Rest pose corrections: the lips are slightly apart in the model; close the jaw a little.
+[rest]
+"c_jawbone.x" = { rotate = [-1.5, 0, 0] }
+
+# The model has no mouth interior: a dark cavity in two halves (upper on the head, lower on the jaw) and two rows of teeth fill the opening.
+[[props]]
+bone = "head.x"
+center = [0, 1446, 60]
+size = [26, 12, 20]
+color = [0.03, 0.007, 0.007]
+unlit = true
+
+[[props]]
+bone = "c_jawbone.x"
+center = [0, 1438, 58]
+size = [25, 11, 20]
+color = [0.03, 0.007, 0.007]
+unlit = true
+
+[[props]]
+bone = "head.x"
+center = [0, 1447, 76]
+size = [14, 2.5, 5]
+color = [0.8, 0.78, 0.72]
+
+[[props]]
+bone = "c_jawbone.x"
+center = [0, 1440, 74]
+size = [13, 2.5, 5]
+color = [0.8, 0.78, 0.72]
+
+# Mouth shapes (visemes). The jaw pivots behind the mouth (rotate +X opens it) and carries the lower lip, chin and lower teeth; the upper lip and the corners (c_lips_smile) hang on the head. Translations: +X towards her left, +Y up, +Z forward.
+[expressions.aa]
+"c_jawbone.x" = { rotate = [8, 0, 0] }
+"c_lips_top.x" = { translate = [0, 1.5, 0] }
+"c_lips_top.l" = { translate = [0, 1.2, 0] }
+"c_lips_top.r" = { translate = [0, 1.2, 0] }
+
+[expressions.ih]
+"c_jawbone.x" = { rotate = [4, 0, 0] }
+"c_lips_smile.l" = { translate = [2, 0.5, -1] }
+"c_lips_smile.r" = { translate = [-2, 0.5, -1] }
+"c_lips_top.x" = { translate = [0, 0.8, 0] }
+
+[expressions.ou]
+"c_jawbone.x" = { rotate = [4, 0, 0] }
+"c_lips_smile.l" = { translate = [-10, 0, 3] }
+"c_lips_smile.r" = { translate = [10, 0, 3] }
+"c_lips_top.x" = { translate = [0, 0, 3] }
+"c_lips_top.l" = { translate = [-2, 0, 3] }
+"c_lips_top.r" = { translate = [2, 0, 3] }
+"c_lips_bot.x" = { translate = [0, 0, 3] }
+"c_lips_bot.l" = { translate = [-2, 0, 3] }
+"c_lips_bot.r" = { translate = [2, 0, 3] }
+
+[expressions.ee]
+"c_jawbone.x" = { rotate = [2.5, 0, 0] }
+"c_lips_smile.l" = { translate = [6, 1, -2] }
+"c_lips_smile.r" = { translate = [-6, 1, -2] }
+"c_lips_top.x" = { translate = [0, 1, 0] }
+"c_lips_top.l" = { translate = [0, 0.8, 0] }
+"c_lips_top.r" = { translate = [0, 0.8, 0] }
+
+[expressions.oh]
+"c_jawbone.x" = { rotate = [6, 0, 0] }
+"c_lips_smile.l" = { translate = [-3.5, 0, 1.5] }
+"c_lips_smile.r" = { translate = [3.5, 0, 1.5] }
+"c_lips_top.x" = { translate = [0, 1, 2] }
+"c_lips_bot.x" = { translate = [0, 0, 2] }

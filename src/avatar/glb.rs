@@ -4,6 +4,8 @@
 //! - `scale`: factor from model units to metres;
 //! - `[humanoid]`: VRM humanoid bone name → node name;
 //! - `[parts]`: free part name → node name, for non-humanoid avatars;
+//! - `[[props]]`: extra shapes attached to a bone, such as a dark mouth interior or teeth the model lacks: `{ bone, shape = "sphere" | "cube", center = [x, y, z], size = [x, y, z], color = [r, g, b], unlit }`. Centre and size (radii for a sphere, half extents for a cube) are in avatar space and model units, as the shape sits in the rest pose; it then follows the bone.
+//! - `[rest]`: node name → bone change as in an expression, applied permanently; corrects the model's rest pose (for example lips that do not quite close).
 //! - `[expressions.<name>]`: node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at weight 1. `rotate` is an axis-angle vector in degrees (direction = axis, length = angle), `translate` an offset in model units; both are in avatar space.
 //!
 //! Node names match exactly, or after dropping the `_<digits>` suffix that Sketchfab exports append (`head.x_010` matches `head.x`).
@@ -33,7 +35,9 @@ pub struct Mapping {
     pub scale: f32,
     pub humanoid: HashMap<String, String>,
     pub parts: HashMap<String, String>,
+    pub rest: HashMap<String, BoneDelta>,
     pub expressions: HashMap<String, HashMap<String, BoneDelta>>,
+    pub props: Vec<PropSpec>,
 }
 
 impl Default for Mapping {
@@ -42,10 +46,50 @@ impl Default for Mapping {
             scale: 1.0,
             humanoid: HashMap::new(),
             parts: HashMap::new(),
+            rest: HashMap::new(),
             expressions: HashMap::new(),
+            props: Vec::new(),
         }
     }
 }
+
+#[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum PropShape {
+    #[default]
+    Sphere,
+    Cube,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct PropSpec {
+    pub bone: String,
+    pub shape: PropShape,
+    pub center: [f32; 3],
+    pub size: [f32; 3],
+    /// Linear RGB, 0..1.
+    pub color: [f32; 3],
+    /// Ignore lighting (for a mouth interior that should stay dark).
+    pub unlit: bool,
+}
+
+impl Default for PropSpec {
+    fn default() -> Self {
+        Self {
+            bone: String::new(),
+            shape: PropShape::Sphere,
+            center: [0.0; 3],
+            size: [1.0; 3],
+            color: [0.0; 3],
+            unlit: false,
+        }
+    }
+}
+
+/// Marks a shape spawned from `[[props]]`.
+#[derive(Component)]
+struct Prop;
 
 #[derive(Deserialize, Debug, Clone, Copy, Default)]
 #[serde(default)]
@@ -82,6 +126,10 @@ pub struct GlbRig {
     /// Bones put back to rest each frame.
     driven: HashMap<Entity, PoseBone>,
     expressions: HashMap<ExpressionName, Vec<Delta>>,
+    /// Rest pose corrections from `[rest]`, applied right after the reset.
+    rest_deltas: Vec<Delta>,
+    /// Avatar-space transform of every node at load time (the rest pose), for placing props.
+    rest_spaces: HashMap<Entity, Affine3A>,
 }
 
 #[derive(Resource)]
@@ -159,6 +207,8 @@ fn resolve_avatar(
     children: Query<&Children>,
     names: Query<&Name>,
     tree: TransformTree,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let root = ready.entity;
     let mut nodes = HashMap::new();
@@ -204,13 +254,17 @@ fn resolve_avatar(
         bones: mapping.parts.iter().filter_map(|(part, node)| Some((part.clone(), lookup(node)?))).collect(),
     };
 
+    let rest_spaces = nodes.values().map(|&e| (e, avatar_space(e, &tree))).collect();
     let mut rig = GlbRig {
         nodes,
         driven: HashMap::new(),
         expressions: HashMap::new(),
+        rest_deltas: Vec::new(),
+        rest_spaces,
     };
     rig.driven.extend(humanoid.bones.values().chain(parts.bones.values()).map(|b| (b.entity, *b)));
     rig.set_expressions(&mapping, &tree);
+    rig.spawn_props(&mapping, &mut commands, &mut meshes, &mut materials);
 
     let mut avatar = commands.entity(root);
     avatar.insert((rig, parts));
@@ -220,32 +274,76 @@ fn resolve_avatar(
 }
 
 impl GlbRig {
-    fn set_expressions(&mut self, mapping: &Mapping, tree: &TransformTree) {
-        self.expressions.clear();
-        for (name, deltas) in &mapping.expressions {
-            let mut resolved = Vec::new();
-            for (node, delta) in deltas {
-                let Some(&entity) = self.nodes.get(node) else {
-                    warn!("expression {name}: node '{node}' not found in the model");
-                    continue;
-                };
-                // Keep the rest pose captured at load time; the bone may be moved right now.
-                let bone = match self.driven.get(&entity) {
-                    Some(b) => *b,
-                    None => match pose_bone(entity, tree) {
-                        Some(b) => b,
-                        None => continue,
-                    },
-                };
-                self.driven.insert(entity, bone);
-                resolved.push(Delta {
-                    bone,
-                    rotate: Vec3::from(delta.rotate).map(f32::to_radians),
-                    translate: Vec3::from(delta.translate),
-                });
-            }
-            self.expressions.insert(name.parse().unwrap(), resolved);
+    fn spawn_props(&self, mapping: &Mapping, commands: &mut Commands, meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) {
+        for prop in &mapping.props {
+            let Some((&bone, &space)) = self.nodes.get(&prop.bone).and_then(|e| Some((e, self.rest_spaces.get(e)?))) else {
+                warn!("prop: bone '{}' not found in the model", prop.bone);
+                continue;
+            };
+            let placement = Affine3A::from_scale_rotation_translation(Vec3::from(prop.size), Quat::IDENTITY, Vec3::from(prop.center));
+            let mesh = match prop.shape {
+                PropShape::Sphere => meshes.add(Sphere::new(1.0).mesh().uv(32, 18)),
+                PropShape::Cube => meshes.add(Cuboid::new(2.0, 2.0, 2.0)),
+            };
+            let [r, g, b] = prop.color;
+            let material = materials.add(StandardMaterial {
+                base_color: Color::linear_rgb(r, g, b),
+                unlit: prop.unlit,
+                perceptual_roughness: 0.6,
+                ..default()
+            });
+            commands.spawn((
+                Prop,
+                Name::new(format!("prop on {}", prop.bone)),
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_matrix(Mat4::from(space.inverse() * placement)),
+                bevy::light::NotShadowCaster,
+                ChildOf(bone),
+            ));
         }
+    }
+
+    fn set_expressions(&mut self, mapping: &Mapping, tree: &TransformTree) {
+        self.rest_deltas = self.deltas("rest", &mapping.rest, tree);
+        self.expressions = mapping.expressions.iter().map(|(name, deltas)| (name.parse().unwrap(), self.deltas(name, deltas, tree))).collect();
+    }
+
+    /// Resolves node names to bones, which from now on are reset to rest each frame.
+    fn deltas(&mut self, context: &str, deltas: &HashMap<String, BoneDelta>, tree: &TransformTree) -> Vec<Delta> {
+        let mut resolved = Vec::new();
+        for (node, delta) in deltas {
+            let Some(&entity) = self.nodes.get(node) else {
+                warn!("{context}: node '{node}' not found in the model");
+                continue;
+            };
+            // Keep the rest pose captured at load time; the bone may be moved right now.
+            let bone = match self.driven.get(&entity) {
+                Some(b) => *b,
+                None => match pose_bone(entity, tree) {
+                    Some(b) => b,
+                    None => continue,
+                },
+            };
+            self.driven.insert(entity, bone);
+            resolved.push(Delta {
+                bone,
+                rotate: Vec3::from(delta.rotate).map(f32::to_radians),
+                translate: Vec3::from(delta.translate),
+            });
+        }
+        resolved
+    }
+}
+
+impl Delta {
+    fn apply(&self, transforms: &mut Query<&mut Transform>, weight: f32) {
+        let Ok(mut t) = transforms.get_mut(self.bone.entity) else { return };
+        let angle = self.rotate.length() * weight;
+        if angle > 0.0 {
+            self.bone.rotate(&mut t, Quat::from_axis_angle(self.rotate.normalize(), angle));
+        }
+        self.bone.translate(&mut t, self.translate * weight);
     }
 }
 
@@ -255,6 +353,9 @@ fn reset_bones(rigs: Query<&GlbRig>, mut transforms: Query<&mut Transform>) {
             if let Ok(mut t) = transforms.get_mut(bone.entity) {
                 *t = bone.rest;
             }
+        }
+        for delta in &rig.rest_deltas {
+            delta.apply(&mut transforms, 1.0);
         }
     }
 }
@@ -267,18 +368,22 @@ fn apply_expressions(rigs: Query<(&GlbRig, &Expressions)>, mut transforms: Query
             }
             let Some(deltas) = rig.expressions.get(name) else { continue };
             for delta in deltas {
-                let Ok(mut t) = transforms.get_mut(delta.bone.entity) else { continue };
-                let angle = delta.rotate.length() * weight;
-                if angle > 0.0 {
-                    delta.bone.rotate(&mut t, Quat::from_axis_angle(delta.rotate.normalize(), angle));
-                }
-                delta.bone.translate(&mut t, delta.translate * weight);
+                delta.apply(&mut transforms, weight);
             }
         }
     }
 }
 
-fn reload_mapping(time: Res<Time>, watch: Option<ResMut<MappingWatch>>, mut rigs: Query<&mut GlbRig>, tree: TransformTree) {
+fn reload_mapping(
+    time: Res<Time>,
+    watch: Option<ResMut<MappingWatch>>,
+    mut rigs: Query<&mut GlbRig>,
+    tree: TransformTree,
+    mut commands: Commands,
+    props: Query<Entity, With<Prop>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     let Some(mut watch) = watch else { return };
     if !watch.timer.tick(time.delta()).just_finished() {
         return;
@@ -289,9 +394,13 @@ fn reload_mapping(time: Res<Time>, watch: Option<ResMut<MappingWatch>>, mut rigs
     }
     watch.modified = modified;
     let Some(mapping) = read_mapping(&watch.path) else { return };
-    info!("reloaded {} (expressions only; bones and scale need a restart)", watch.path.display());
+    info!("reloaded {} (expressions and props; bones and scale need a restart)", watch.path.display());
+    for entity in &props {
+        commands.entity(entity).despawn();
+    }
     for mut rig in &mut rigs {
         rig.set_expressions(&mapping, &tree);
+        rig.spawn_props(&mapping, &mut commands, &mut meshes, &mut materials);
     }
 }
 
