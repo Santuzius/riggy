@@ -32,9 +32,13 @@ fn main() -> ExitCode {
 
 fn run_avatar() {
     let config_path = config::config_path();
-    let config = config::load(&config_path);
+    let mut config = config::load(&config_path);
     if let Err(err) = riggy::files::ensure_user_files(&config.avatar.name) {
         eprintln!("riggy: cannot create the files in {}: {err}", riggy::files::config_dir().display());
+    }
+    // The window opens as high as the avatar wants it on the desktop; changing the height later leaves the picture cut until the next resize.
+    if config.on_desktop {
+        config.window.height = (config.window.height as f32 * avatar::glb::window_share(&config.avatar.mapping)).round() as u32;
     }
 
     let mut app = App::new();

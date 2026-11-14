@@ -272,10 +272,6 @@ impl Default for Machine {
     }
 }
 
-/// Share of the configured window height the avatar takes on the desktop (mapping file: `window_height`), so a bulky avatar can be shown smaller than a slim one; on the avatar root entity.
-#[derive(Component, Debug, Clone, Copy)]
-pub struct WindowShare(pub f32);
-
 /// Expression weights from 0 to 1, set each frame by blink and mouth code and applied by the backend.
 #[derive(Component, Debug, Default)]
 pub struct Expressions {

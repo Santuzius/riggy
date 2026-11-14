@@ -27,7 +27,7 @@ use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, WindowShare, avatar_space};
+use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, avatar_space};
 use crate::config::{AvatarKind, Config};
 
 /// Asset source id under which the model's directory is registered.
@@ -127,6 +127,11 @@ struct Prop;
 pub struct BoneDelta {
     pub rotate: [f32; 3],
     pub translate: [f32; 3],
+}
+
+/// Share of the configured window height the avatar of mapping file `path` takes on the desktop (`window_height`), 1 if the file cannot be read.
+pub fn window_share(path: &Path) -> f32 {
+    std::fs::read_to_string(path).ok().and_then(|text| toml::from_str::<Mapping>(&text).ok()).map_or(1.0, |m| m.window_height.clamp(0.1, 1.0))
 }
 
 fn read_mapping(path: &Path) -> Option<Mapping> {
@@ -306,7 +311,7 @@ fn resolve_avatar(
     rig.glowing = apply_material(&mapping.material, &model, surfaces, &asset_server, &mut meshes, &mut materials);
 
     let mut avatar = commands.entity(root);
-    avatar.insert((rig, parts, WindowShare(mapping.window_height.clamp(0.1, 1.0))));
+    avatar.insert((rig, parts));
     match mapping.machine {
         Some(machine) => {
             avatar.insert(machine);
