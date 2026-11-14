@@ -32,6 +32,7 @@ duration = 0.15
 time_constant = 0.04
 release_time = 0.12
 shape_time = 0.07
+cheek_time = 0.3     # cheeks follow "ee"/"ih" this slowly
 pause_opening = 0.15
 pause_hold = 0.4
 silence_level = 0.01

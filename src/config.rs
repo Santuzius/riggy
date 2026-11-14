@@ -147,6 +147,8 @@ pub struct MouthConfig {
     pub release_time: f32,
     /// Time constant in seconds with which the mouth shape (not the opening) follows a fully open sound; quieter sounds move it more slowly.
     pub shape_time: f32,
+    /// Time constant in seconds with which the cheeks follow the spread mouth shapes.
+    pub cheek_time: f32,
     /// Opening (0–1) kept during quiet stretches within speech.
     pub pause_opening: f32,
     /// Quiet stretches longer than this (seconds) close the mouth fully.
@@ -165,6 +167,7 @@ impl Default for MouthConfig {
             time_constant: 0.04,
             release_time: 0.12,
             shape_time: 0.07,
+            cheek_time: 0.3,
             pause_opening: 0.15,
             pause_hold: 0.4,
             silence_level: 0.01,
