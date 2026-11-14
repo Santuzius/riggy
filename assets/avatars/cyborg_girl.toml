@@ -93,7 +93,7 @@ center = [0, 1440, 74]
 size = [13, 2.5, 5]
 color = [0.8, 0.78, 0.72]
 
-# Mouth shapes (visemes). The jaw pivots behind the mouth (rotate +X opens it) and carries the lower lip, chin and lower teeth; the upper lip and the corners (c_lips_smile) hang on the head. Translations: +X towards her left, +Y up, +Z forward.
+# Mouth shapes (visemes). The jaw pivots behind the mouth (rotate +X opens it) and carries the lower lip, chin and lower teeth; the upper lip and the corners (c_lips_smile) hang on the head; c_cheek_smile raises the cheeks for the spread vowels. Translations: +X towards her left, +Y up, +Z forward.
 [expressions.aa]
 "c_jawbone.x" = { rotate = [8, 0, 0] }
 "c_lips_top.x" = { translate = [0, 1.5, 0] }
@@ -105,6 +105,8 @@ color = [0.8, 0.78, 0.72]
 "c_lips_smile.l" = { translate = [2, 0.5, -1] }
 "c_lips_smile.r" = { translate = [-2, 0.5, -1] }
 "c_lips_top.x" = { translate = [0, 0.8, 0] }
+"c_cheek_smile.l" = { translate = [1, 2, 0] }
+"c_cheek_smile.r" = { translate = [-1, 2, 0] }
 
 [expressions.ou]
 "c_jawbone.x" = { rotate = [4, 0, 0] }
@@ -119,8 +121,10 @@ color = [0.8, 0.78, 0.72]
 
 [expressions.ee]
 "c_jawbone.x" = { rotate = [2.5, 0, 0] }
-"c_lips_smile.l" = { translate = [6, 1, -2] }
-"c_lips_smile.r" = { translate = [-6, 1, -2] }
+"c_lips_smile.l" = { translate = [8, 1.5, -2.5] }
+"c_lips_smile.r" = { translate = [-8, 1.5, -2.5] }
+"c_cheek_smile.l" = { translate = [2, 5, 0.5] }
+"c_cheek_smile.r" = { translate = [-2, 5, 0.5] }
 "c_lips_top.x" = { translate = [0, 1, 0] }
 "c_lips_top.l" = { translate = [0, 0.8, 0] }
 "c_lips_top.r" = { translate = [0, 0.8, 0] }
