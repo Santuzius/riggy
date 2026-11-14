@@ -27,9 +27,12 @@ min_interval = 2.0
 max_interval = 6.0
 duration = 0.15
 
-# Mouth: smoothing time constant of the mouth shapes in seconds; speech RMS levels (full scale 1) at which the mouth starts to open and opens fully; extra delay of the mouth behind the sound in seconds.
+# Mouth: smoothing time constants in seconds for opening and closing; opening (0–1) kept in quiet stretches within speech and the stretch length in seconds after which it closes fully; speech RMS levels (full scale 1) at which the mouth starts to open and opens fully; extra delay of the mouth behind the sound in seconds.
 [mouth]
 time_constant = 0.04
+release_time = 0.12
+pause_opening = 0.15
+pause_hold = 0.4
 silence_level = 0.01
 loud_level = 0.12
 audio_latency = 0.0

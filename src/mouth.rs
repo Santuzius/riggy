@@ -33,11 +33,12 @@ fn debug_keys(keys: Res<ButtonInput<KeyCode>>, mut target: ResMut<MouthTarget>) 
     }
 }
 
-/// Moves the current weights towards the target with a first-order lag.
+/// Moves the current weights towards the target with a first-order lag: `time_constant` while a weight rises, the slower `release_time` while it falls, as a jaw opens quickly and closes more slowly.
 fn mouth(time: Res<Time>, config: Res<Config>, target: Res<MouthTarget>, mut current: Local<[f32; 5]>, mut avatars: Query<&mut Expressions, With<Humanoid>>) {
-    let k = 1.0 - (-time.delta_secs() / config.mouth.time_constant.max(1e-3)).exp();
+    let gain = |tau: f32| 1.0 - (-time.delta_secs() / tau.max(1e-3)).exp();
+    let (rise, fall) = (gain(config.mouth.time_constant), gain(config.mouth.release_time));
     for (w, t) in current.iter_mut().zip(target.0) {
-        *w += (t - *w) * k;
+        *w += (t - *w) * if t > *w { rise } else { fall };
     }
     for mut expressions in &mut avatars {
         for (viseme, &w) in ExpressionPreset::VISEMES.iter().zip(current.iter()) {

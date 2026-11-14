@@ -141,8 +141,14 @@ impl Default for BlinkConfig {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct MouthConfig {
-    /// Smoothing time constant of the viseme weights in seconds.
+    /// Smoothing time constant of the viseme weights in seconds while they rise.
     pub time_constant: f32,
+    /// Smoothing time constant in seconds while they fall (the mouth closing).
+    pub release_time: f32,
+    /// Opening (0–1) kept during quiet stretches within speech.
+    pub pause_opening: f32,
+    /// Quiet stretches longer than this (seconds) close the mouth fully.
+    pub pause_hold: f32,
     /// RMS level (full scale = 1) below which the mouth closes.
     pub silence_level: f32,
     /// RMS level that opens the mouth fully.
@@ -155,6 +161,9 @@ impl Default for MouthConfig {
     fn default() -> Self {
         Self {
             time_constant: 0.04,
+            release_time: 0.12,
+            pause_opening: 0.15,
+            pause_hold: 0.4,
             silence_level: 0.01,
             loud_level: 0.12,
             audio_latency: 0.0,

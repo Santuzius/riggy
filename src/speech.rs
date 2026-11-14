@@ -60,8 +60,21 @@ impl Default for Header {
 /// Without a measure for this long, the audio thread has stopped and riggy counts as silent.
 const STALE: Duration = Duration::from_millis(200);
 
+/// Memory of the lip-sync system between frames.
+#[derive(Default)]
+struct LipState {
+    /// When the last measure arrived.
+    last: Option<Instant>,
+    /// Mouth shape of the last sound, scaled to a total weight of 1.
+    shape: [f32; 5],
+    /// Start of the current quiet stretch within speech.
+    quiet_since: Option<Instant>,
+}
+
 /// Sets the mouth from the measure being heard now; leaves it alone while nothing plays, so the debug keys still work.
-fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut target: ResMut<MouthTarget>, mut last: Local<Option<Instant>>) {
+///
+/// Speakers rarely close the mouth between words: in a quiet stretch shorter than `[mouth] pause_hold` the last shape stays open at `pause_opening`.
+fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut target: ResMut<MouthTarget>, mut state: Local<LipState>) {
     let now = Instant::now();
     let heard = now.checked_sub(Duration::from_secs_f32(config.mouth.audio_latency.max(0.0))).unwrap_or(now);
 
@@ -76,14 +89,24 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
     let was_speaking = voice.speaking;
     match current {
         Some(frame) => {
-            *last = Some(now);
+            state.last = Some(now);
             voice.speaking = frame.active;
             voice.level = frame.measure.level;
             if frame.active {
-                target.0 = lipsync::visemes(&frame.measure, config.mouth.silence_level, config.mouth.loud_level);
+                let weights = lipsync::visemes(&frame.measure, config.mouth.silence_level, config.mouth.loud_level);
+                let total: f32 = weights.iter().sum();
+                if total > 0.0 {
+                    state.shape = weights.map(|w| w / total);
+                    state.quiet_since = None;
+                    target.0 = weights;
+                } else {
+                    let since = *state.quiet_since.get_or_insert(now);
+                    let open = if (now - since).as_secs_f32() < config.mouth.pause_hold { config.mouth.pause_opening } else { 0.0 };
+                    target.0 = state.shape.map(|w| w * open);
+                }
             }
         }
-        None if last.is_none_or(|t| now - t > STALE) => {
+        None if state.last.is_none_or(|t| now - t > STALE) => {
             voice.speaking = false;
             voice.level = 0.0;
         }
@@ -91,6 +114,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
     }
     if was_speaking && !voice.speaking {
         target.0 = [0.0; 5];
+        *state = LipState { last: state.last, ..default() };
         info!("speech ended");
     }
     if !was_speaking && voice.speaking {
