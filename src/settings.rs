@@ -26,7 +26,7 @@ pub struct Settings {
     pub size: f32,
     /// Framing between the whole figure (0) and the face (1).
     pub zoom: f32,
-    /// Turn of the figure in degrees; positive turns it to its left.
+    /// Turn of the figure in degrees, positive to its left; set by dragging the figure with the right mouse button.
     pub turn: f32,
     /// Start the tray with the desktop session.
     pub autostart: bool,

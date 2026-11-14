@@ -12,10 +12,9 @@ A left click on the tray icon shows or closes Riggy. The menu:
 | Show Riggy | starts or closes the avatar on the desktop |
 | Avatar | the installed avatars (see [avatars.md](avatars.md)); Riggy restarts with the chosen one |
 | Lip sync | the method from the next utterance on (see below) |
-| Desktop › Click-through | on: clicks go to the windows underneath; off: drag Riggy with the left mouse button and zoom with the mouse wheel |
+| Desktop › Click-through | on: clicks go to the windows underneath; off: drag Riggy with the left mouse button to move it, with the right one to turn it, and zoom with the mouse wheel. Riggy keeps the turn for its next start. |
 | Desktop › Size | window size; Riggy restarts with it |
 | Desktop › View | whole figure, upper body or face |
-| Desktop › Turn | turns the figure to its left or right |
 | Start automatically | at login (an entry in `~/.config/autostart/`), and when an AI agent starts `riggy-mcp` |
 | Advanced settings | opens the settings file, the avatar's mapping file or the avatars folder in your default application; "Reset to defaults" puts all of them back, keeping the replaced files as `*.old` |
 | Quit | closes the tray and Riggy |
@@ -41,7 +40,7 @@ Only one tray runs at a time; the start menu entry does nothing while it runs.
 | `~/.local/share/riggy/avatars/NAME.toml` | the mapping file of avatar `NAME` |
 | `~/.local/share/qwentts/models/` | the speech server's models |
 
-Riggy creates its settings and the default avatar's mapping file at its first start. Changes to `[idle]`, `[blink]`, `[mouth]` and `[lipsync]` apply while Riggy runs; the others after a restart ("Show Riggy" off and on). Started from the tray, Riggy's window is transparent and above the others, and the tray's avatar, size, view and turn replace `[avatar] name` and the matching `[window]` settings. `RIGGY_CONFIG` names another settings file.
+Riggy creates its settings and the default avatar's mapping file at its first start. Changes to `[idle]`, `[blink]`, `[mouth]` and `[lipsync]` apply while Riggy runs; the others after a restart ("Show Riggy" off and on). Started from the tray, Riggy's window is transparent and above the others, and the tray's avatar, size and view and the last turn made with the mouse replace `[avatar] name` and the matching `[window]` settings. `RIGGY_CONFIG` names another settings file.
 
 ## On the desktop
 

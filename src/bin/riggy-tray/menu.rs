@@ -11,7 +11,6 @@ use crate::tray::{RiggyTray, lipsync_label, open};
 const TEMPOS: [f32; 6] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 const SIZES: [(&str, f32); 5] = [("Small", 0.75), ("Normal", 1.0), ("Large", 1.25), ("Larger", 1.5), ("Huge", 2.0)];
 const VIEWS: [(&str, f32); 3] = [("Whole figure", 0.0), ("Upper body", 0.6), ("Face", 1.0)];
-const TURNS: [(&str, f32); 5] = [("Far left", 60.0), ("Left", 25.0), ("Front", 0.0), ("Right", -25.0), ("Far right", -60.0)];
 
 type Select<T> = fn(&mut RiggyTray, T);
 
@@ -85,13 +84,12 @@ impl RiggyTray {
         submenu(
             "Desktop",
             vec![
-                checkmark("Click-through (off: drag to move)", s.click_through, |tray| {
+                checkmark("Click-through (off: drag to move or turn)", s.click_through, |tray| {
                     let on = !tray.settings.click_through;
                     tray.choose_and_send(|s| s.click_through = on, |s| AvatarCommand::ClickThrough(s.click_through));
                 }),
                 radio_menu("Size", labelled(&SIZES), &s.size, RiggyTray::set_size),
                 radio_menu("View", labelled(&VIEWS), &s.zoom, |tray, zoom| tray.choose_and_send(|s| s.zoom = zoom, |s| AvatarCommand::Zoom(s.zoom))),
-                radio_menu("Turn", labelled(&TURNS), &s.turn, |tray, turn| tray.choose_and_send(|s| s.turn = turn, |s| AvatarCommand::Turn(s.turn))),
             ],
         )
     }

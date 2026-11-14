@@ -49,8 +49,9 @@ impl RiggyTray {
         }
     }
 
-    /// Changes the settings with `change` and keeps them.
+    /// Changes the settings with `change` and keeps them; reads them first, as the avatar keeps its turn there.
     pub fn choose(&mut self, change: impl FnOnce(&mut Settings)) {
+        self.settings = Settings::load();
         change(&mut self.settings);
         self.save();
     }

@@ -1,4 +1,4 @@
-//! The desktop window: optionally borderless and transparent, kept above other windows and letting clicks through to the desktop. F2 or the tray toggles click-through; while it is off, dragging with the left mouse button moves the window. The tray can also close it.
+//! The desktop window: optionally borderless and transparent, kept above other windows and letting clicks through to the desktop. F2 or the tray toggles click-through; while it is off, dragging with the left mouse button moves the window (and with the right one turns the figure, see `view`). The tray can also close it.
 
 use bevy::prelude::*;
 use bevy::window::{CompositeAlphaMode, CursorOptions, PrimaryWindow, WindowLevel};

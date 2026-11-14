@@ -121,7 +121,7 @@ All you need is reachable through the tray:
 - Select TTS voice or tempo
 - Switch riggy-mcp's default instructions for the agent on/off
 - Select lip sync method
-- Desktop: enable dragging/click-through, size, view (whole figure to face) and turn
+- Desktop: click-through, or move and turn Riggy with the mouse; size and view (whole figure to face)
 - Enable autostart at login or when an AI agent starts `riggy-mcp`
 - Open files for advanced configuration in your default editor
 

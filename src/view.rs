@@ -1,12 +1,14 @@
-//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the tray moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` or the tray says.
+//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the tray moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`; on the desktop a drag's result is kept for the next start.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
+use bevy::window::CursorMoved;
 
 use riggy::control::Command;
+use riggy::settings::Settings;
 
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
 use crate::commands::Received;
@@ -16,6 +18,8 @@ use crate::config::Config;
 const MARGIN: f32 = 0.06;
 /// Height of the face close-up in metres.
 const FACE_HEIGHT: f32 = 0.32;
+/// Degrees the figure turns per logical pixel of a horizontal drag.
+const TURN_PER_PIXEL: f32 = 0.5;
 
 pub struct ViewPlugin;
 
@@ -182,16 +186,69 @@ fn world_vertices(mesh: &Mesh, transform: &GlobalTransform, skin: Option<(&Skinn
         .collect()
 }
 
-/// Turns the figure: when it appears as `[window] turn` says, later as the tray asks.
-fn turn_avatar(config: Res<Config>, mut commands: MessageReader<Received>, mut avatars: Query<(&mut Transform, Ref<AvatarRoot>)>) {
-    let asked = commands.read().filter_map(|Received(command)| if let Command::Turn(degrees) = *command { Some(degrees) } else { None }).last();
+/// The figure's turn in degrees, and the cursor's last x while the right mouse button drags.
+struct Turning {
+    degrees: f32,
+    drag_x: Option<f32>,
+}
+
+impl FromWorld for Turning {
+    fn from_world(world: &mut World) -> Self {
+        Self { degrees: world.resource::<Config>().window.turn, drag_x: None }
+    }
+}
+
+/// `degrees` as an angle between -180° and 180°.
+fn wrapped(degrees: f32) -> f32 {
+    (degrees + 180.0).rem_euclid(360.0) - 180.0
+}
+
+/// Turns the figure: when it appears, while the right mouse button drags it (to the right turns it to its left, as if pushing its front), and on the control socket's `turn`.
+fn turn_avatar(
+    config: Res<Config>,
+    buttons: Res<ButtonInput<MouseButton>>,
+    mut cursor: MessageReader<CursorMoved>,
+    mut commands: MessageReader<Received>,
+    mut turning: Local<Turning>,
+    mut avatars: Query<(&mut Transform, Ref<AvatarRoot>)>,
+) {
+    let mut changed = false;
+    for Received(command) in commands.read() {
+        if let Command::Turn(degrees) = *command {
+            turning.degrees = wrapped(degrees);
+            changed = true;
+        }
+    }
+    for moved in cursor.read() {
+        if !buttons.pressed(MouseButton::Right) {
+            turning.drag_x = None;
+            continue;
+        }
+        if let Some(x) = turning.drag_x {
+            turning.degrees = wrapped(turning.degrees + (moved.position.x - x) * TURN_PER_PIXEL);
+            changed = true;
+        }
+        turning.drag_x = Some(moved.position.x);
+    }
+    if buttons.just_released(MouseButton::Right) {
+        turning.drag_x = None;
+        if config.on_desktop {
+            remember_turn(turning.degrees);
+        }
+    }
     for (mut transform, root) in &mut avatars {
-        let degrees = match asked {
-            Some(degrees) => degrees,
-            None if root.is_added() => config.window.turn,
-            None => continue,
-        };
-        transform.rotation = Quat::from_rotation_y(degrees.to_radians());
+        if changed || root.is_added() {
+            transform.rotation = Quat::from_rotation_y(turning.degrees.to_radians());
+        }
+    }
+}
+
+/// Keeps the turn in the tray's settings, from which the next start takes it.
+fn remember_turn(degrees: f32) {
+    let mut settings = Settings::load();
+    settings.turn = degrees;
+    if let Err(err) = settings.save() {
+        warn!("cannot keep the turn: {err}");
     }
 }
 
@@ -223,4 +280,16 @@ fn place_camera(mut cameras: Query<(&Framing, &Projection, &mut Transform)>) {
     let target = full.target.lerp(face.target, ((full.height - height) / (full.height - face.height).max(1e-6)).clamp(0.0, 1.0));
     let distance = height / 2.0 / (perspective.fov / 2.0).tan();
     *transform = Transform::from_translation(target + Vec3::Z * distance).looking_at(target, Vec3::Y);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn turns_wrap_to_half_a_circle_either_way() {
+        assert_eq!(wrapped(30.0), 30.0);
+        assert_eq!(wrapped(190.0), -170.0);
+        assert_eq!(wrapped(-200.0), 160.0);
+    }
 }
