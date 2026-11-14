@@ -1,6 +1,6 @@
 //! Settings from `riggy.toml`, reloaded when the file changes.
 //!
-//! The defaults come with riggy (`riggy.toml` in the repository); the user's `~/.config/riggy/riggy.toml` (or `$RIGGY_CONFIG`) holds only what differs and is laid over them table by table. See `riggy::files` for all paths. `$RIGGY_MODEL` overrides the model file; `RIGGY_DESKTOP=1` makes the window transparent and keeps it above the others.
+//! The defaults come with riggy (`riggy.toml` in the repository); the user's `~/.config/riggy/riggy.toml` (or `$RIGGY_CONFIG`) holds only what differs and is laid over them table by table. See `riggy::files` for all paths. `$RIGGY_MODEL` overrides the model file. `RIGGY_DESKTOP=1`, with which the tray starts riggy, makes the window transparent and keeps it above the others, and lays the tray's choices (`riggy::settings`: model, size, zoom, turn) over the settings.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -101,6 +101,8 @@ pub struct WindowConfig {
     pub background: [f32; 4],
     /// Zoom at startup: 0 shows the whole figure, 1 the face (the mouse wheel changes it).
     pub zoom: f32,
+    /// Turn of the figure in degrees at startup; positive turns it to its left.
+    pub turn: f32,
 }
 
 impl Default for WindowConfig {
@@ -113,6 +115,7 @@ impl Default for WindowConfig {
             click_through: false,
             background: [0.08, 0.08, 0.10, 1.0],
             zoom: 0.0,
+            turn: 0.0,
         }
     }
 }
@@ -243,6 +246,10 @@ pub fn load(path: &Path) -> Config {
         eprintln!("riggy: {}: {err}", path.display());
         Config::default()
     });
+    // The tray starts riggy this way: on the desktop, as the tray's choices say.
+    if std::env::var_os("RIGGY_DESKTOP").is_some_and(|v| v == "1") {
+        apply_tray_choices(&mut config, &riggy::settings::Settings::load());
+    }
     if let Some(model) = std::env::var_os("RIGGY_MODEL") {
         let model = PathBuf::from(model);
         config.avatar.path = std::path::absolute(&model).unwrap_or(model);
@@ -250,12 +257,22 @@ pub fn load(path: &Path) -> Config {
     let avatar = &mut config.avatar;
     avatar.path = if avatar.path.as_os_str().is_empty() { riggy::files::model(&avatar.name) } else { riggy::files::resolve(&avatar.path) };
     avatar.mapping = if avatar.mapping.as_os_str().is_empty() { riggy::files::mapping(&avatar.name) } else { riggy::files::resolve(&avatar.mapping) };
-    // The tray starts riggy this way: on the desktop whatever the config says for testing.
-    if std::env::var_os("RIGGY_DESKTOP").is_some_and(|v| v == "1") {
-        config.window.transparent = true;
-        config.window.always_on_top = true;
-    }
     config
+}
+
+/// A transparent window above the others, with the model, size and view chosen in the tray.
+fn apply_tray_choices(config: &mut Config, choices: &riggy::settings::Settings) {
+    let window = &mut config.window;
+    window.transparent = true;
+    window.always_on_top = true;
+    let size = choices.size.clamp(0.25, 4.0);
+    window.width = (window.width as f32 * size).round() as u32;
+    window.height = (window.height as f32 * size).round() as u32;
+    window.zoom = choices.zoom;
+    window.turn = choices.turn;
+    if !choices.model.is_empty() {
+        config.avatar = AvatarConfig { name: choices.model.clone(), ..AvatarConfig::default() };
+    }
 }
 
 /// Lays `over` onto `base`: tables merge key by key, everything else replaces.
@@ -331,6 +348,18 @@ mod tests {
         assert_eq!(base["idle"]["breath_rate"].as_float(), Some(0.25));
         assert_eq!(base["idle"]["head_angle"].as_float(), Some(15.0));
         assert_eq!(base["lipsync"]["mode"].as_str(), Some("sound"));
+    }
+
+    #[test]
+    fn the_tray_choices_scale_the_window_and_replace_the_model() {
+        let mut config = Config::default();
+        config.avatar.path = "~/other.glb".into();
+        let choices = riggy::settings::Settings { size: 1.5, model: "robot".into(), ..Default::default() };
+        apply_tray_choices(&mut config, &choices);
+        assert_eq!((config.window.width, config.window.height), (600, 1050));
+        assert_eq!(config.avatar.name, "robot");
+        assert!(config.avatar.path.as_os_str().is_empty());
+        assert!(config.window.transparent);
     }
 
     #[test]

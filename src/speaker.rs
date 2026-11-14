@@ -1,6 +1,6 @@
-//! Plays queued texts one after another, each to its end, with [`GAP`] of silence in between.
+//! Speaks texts with the speech server, in the voice and tempo chosen in the tray (`riggy::settings`): [`Player`] queues them for `riggy-mcp` and plays one after another, each to its end, with [`GAP`] of silence in between; [`say`] speaks one at once for `riggy say`.
 //!
-//! Audio is streamed: server PCM → ffmpeg (tempo) → the avatar's speech socket if the avatar runs, otherwise `pw-play`.
+//! Audio is streamed: server PCM → ffmpeg (tempo) → the avatar's speech socket if the avatar runs, otherwise `pw-play`. Both programs must be on `PATH`.
 
 use std::error::Error;
 use std::io::{Read, Write};
@@ -12,7 +12,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use riggy::settings::{self, Settings};
+use crate::settings::{self, Settings};
 use serde_json::json;
 
 const SAMPLE_RATE: u32 = 24_000;
@@ -40,10 +40,10 @@ struct Playing {
 }
 
 impl Player {
-    pub fn start(tts_url: String) -> Self {
+    pub fn start() -> Self {
         let (queue, texts) = mpsc::channel();
         let playing = Arc::new(Mutex::new(Playing::default()));
-        let worker = Worker { tts_url, speech_socket: speech_socket(), playing: playing.clone() };
+        let worker = Worker { tts_url: crate::speech_server::url(), speech_socket: speech_socket(), playing: playing.clone() };
         std::thread::spawn(move || worker.run(texts));
         Self { queue, playing }
     }
@@ -63,9 +63,15 @@ impl Player {
     }
 }
 
+/// Speaks `speech` now and returns when it has been played.
+pub fn say(speech: &Speech) -> Result<(), Box<dyn Error>> {
+    let worker = Worker { tts_url: crate::speech_server::url(), speech_socket: speech_socket(), playing: Arc::default() };
+    worker.speak(speech)
+}
+
 /// `RIGGY_SOCKET`, or the avatar's default speech socket.
 fn speech_socket() -> PathBuf {
-    std::env::var_os("RIGGY_SOCKET").map(PathBuf::from).unwrap_or_else(riggy::control::default_speech_socket)
+    std::env::var_os("RIGGY_SOCKET").map(PathBuf::from).unwrap_or_else(crate::control::default_speech_socket)
 }
 
 struct Worker {
@@ -181,7 +187,8 @@ impl Chain {
             .stdin(Stdio::piped())
             .stdout(output)
             .stderr(Stdio::null())
-            .spawn()?;
+            .spawn()
+            .map_err(|err| format!("ffmpeg: {err}"))?;
         let pw_play = match ffmpeg.stdout.take() {
             Some(sound) => Some(
                 Command::new("pw-play")
@@ -190,9 +197,10 @@ impl Chain {
                     .stdout(Stdio::null())
                     .stderr(Stdio::null())
                     .spawn()
-                    .inspect_err(|_| {
+                    .map_err(|err| {
                         let _ = ffmpeg.kill();
                         let _ = ffmpeg.wait();
+                        format!("pw-play: {err}")
                     })?,
             ),
             None => None,

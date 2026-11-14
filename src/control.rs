@@ -1,6 +1,6 @@
 //! The avatar's sockets: speech comes in on one, commands from the tray on the other.
 //!
-//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
+//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
 
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
@@ -35,13 +35,17 @@ impl LipsyncMode {
 }
 
 /// A command for the running avatar.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Command {
     /// Let clicks through to the windows underneath, or take them (then dragging moves the window).
     ClickThrough(bool),
     /// Lip-sync mode from the next utterance on.
     Lipsync(LipsyncMode),
+    /// Framing between the whole figure (0) and the face (1).
+    Zoom(f32),
+    /// Turns the figure about its vertical axis, in degrees; positive turns it to its left.
+    Turn(f32),
     /// Close the avatar.
     Quit,
 }
@@ -79,6 +83,8 @@ mod tests {
     fn commands_read_as_documented() {
         assert_eq!(serde_json::to_string(&Command::ClickThrough(true)).unwrap(), r#"{"click_through":true}"#);
         assert_eq!(serde_json::to_string(&Command::Lipsync(LipsyncMode::Text)).unwrap(), r#"{"lipsync":"text"}"#);
+        assert_eq!(serde_json::to_string(&Command::Zoom(0.5)).unwrap(), r#"{"zoom":0.5}"#);
+        assert_eq!(serde_json::to_string(&Command::Turn(-20.0)).unwrap(), r#"{"turn":-20.0}"#);
         assert_eq!(serde_json::to_string(&Command::Quit).unwrap(), r#""quit""#);
     }
 

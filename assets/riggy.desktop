@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Riggy
+GenericName=Desktop mascot
+Comment=An animated character that speaks your AI agent's replies
+Exec=riggy-tray
+Icon=riggy
+Terminal=false
+Categories=Utility;
+Keywords=mascot;avatar;speech;TTS;MCP;
+StartupWMClass=riggy

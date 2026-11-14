@@ -1,4 +1,4 @@
-# Cyborg girl (Auto-Rig-Pro rig, Sketchfab export). Repair the rest pose first: tools/fix_bind_pose.py.
+# Cyborg girl (Auto-Rig-Pro rig, Sketchfab export). `riggy install` repairs its rest pose.
 # Avatar space: +Y up, +Z the way she faces, +X her left; model units are millimetres.
 
 scale = 0.001

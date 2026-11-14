@@ -14,7 +14,7 @@ pub const APP_ID: &str = "riggy";
 /// The primary window as `[window]` describes it.
 pub fn primary_window(config: &WindowConfig) -> Window {
     Window {
-        title: "riggy".into(),
+        title: "Riggy".into(),
         name: Some(APP_ID.into()),
         resolution: (config.width, config.height).into(),
         decorations: !config.transparent,
@@ -71,7 +71,7 @@ fn obey(mut commands: MessageReader<Received>, mut cursors: Query<&mut CursorOpt
             Command::Quit => {
                 exit.write(AppExit::Success);
             }
-            Command::Lipsync(_) => {}
+            Command::Lipsync(_) | Command::Zoom(_) | Command::Turn(_) => {}
         }
     }
 }

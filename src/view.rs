@@ -1,4 +1,4 @@
-//! Camera and lights. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel moves it between that full view and a close-up of the face.
+//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the tray moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` or the tray says.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -6,7 +6,10 @@ use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 
+use riggy::control::Command;
+
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
+use crate::commands::Received;
 use crate::config::Config;
 
 /// Relative margin above the figure in the full view.
@@ -24,7 +27,7 @@ impl Plugin for ViewPlugin {
             ..default()
         })
         .add_systems(Startup, setup)
-        .add_systems(Update, (frame_avatar, zoom, place_camera).chain());
+        .add_systems(Update, (turn_avatar, frame_avatar, zoom, place_camera).chain());
     }
 }
 
@@ -179,8 +182,27 @@ fn world_vertices(mesh: &Mesh, transform: &GlobalTransform, skin: Option<(&Skinn
         .collect()
 }
 
-fn zoom(mut wheel: MessageReader<MouseWheel>, mut cameras: Query<&mut Framing>) {
+/// Turns the figure: when it appears as `[window] turn` says, later as the tray asks.
+fn turn_avatar(config: Res<Config>, mut commands: MessageReader<Received>, mut avatars: Query<(&mut Transform, Ref<AvatarRoot>)>) {
+    let asked = commands.read().filter_map(|Received(command)| if let Command::Turn(degrees) = *command { Some(degrees) } else { None }).last();
+    for (mut transform, root) in &mut avatars {
+        let degrees = match asked {
+            Some(degrees) => degrees,
+            None if root.is_added() => config.window.turn,
+            None => continue,
+        };
+        transform.rotation = Quat::from_rotation_y(degrees.to_radians());
+    }
+}
+
+/// Zoom from the mouse wheel and the tray.
+fn zoom(mut wheel: MessageReader<MouseWheel>, mut commands: MessageReader<Received>, mut cameras: Query<&mut Framing>) {
     let Ok(mut framing) = cameras.single_mut() else { return };
+    for Received(command) in commands.read() {
+        if let Command::Zoom(zoom) = *command {
+            framing.zoom = zoom.clamp(0.0, 1.0);
+        }
+    }
     for event in wheel.read() {
         let steps = match event.unit {
             MouseScrollUnit::Line => event.y,

@@ -17,14 +17,38 @@ pub struct Settings {
     pub tempo: f32,
     /// Whether the avatar is shown.
     pub avatar: bool,
+    /// The avatar's model name (`~/.local/share/riggy/models/NAME.glb`); empty takes `[avatar] name` from `riggy.toml`.
+    pub model: String,
     /// Whether clicks go through the avatar to the windows underneath.
     pub click_through: bool,
     pub lipsync: LipsyncMode,
+    /// Window size relative to `[window] width` and `height`.
+    pub size: f32,
+    /// Framing between the whole figure (0) and the face (1).
+    pub zoom: f32,
+    /// Turn of the figure in degrees; positive turns it to its left.
+    pub turn: f32,
+    /// Start the tray with the desktop session.
+    pub autostart: bool,
+    /// Start the tray, and with it the avatar, when an AI agent starts `riggy-mcp`.
+    pub start_with_mcp: bool,
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { voice: "serena".into(), tempo: 1.25, avatar: true, click_through: true, lipsync: LipsyncMode::Sound }
+        Self {
+            voice: "serena".into(),
+            tempo: 1.25,
+            avatar: true,
+            model: String::new(),
+            click_through: true,
+            lipsync: LipsyncMode::Sound,
+            size: 1.0,
+            zoom: 0.0,
+            turn: 0.0,
+            autostart: true,
+            start_with_mcp: true,
+        }
     }
 }
 
@@ -51,4 +75,17 @@ pub fn speech_off_flag() -> PathBuf {
 
 pub fn speech_off() -> bool {
     speech_off_flag().exists()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_older_settings_file_keeps_its_choices_and_gets_the_new_defaults() {
+        let settings: Settings = toml::from_str("voice = \"ryan\"\ntempo = 1.5").unwrap();
+        assert_eq!(settings.voice, "ryan");
+        assert_eq!(settings.size, 1.0);
+        assert!(settings.autostart);
+    }
 }

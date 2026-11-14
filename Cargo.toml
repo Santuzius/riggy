@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.97.1"
 license = "MIT"
-description = "A desktop mascot that idles and lip-syncs to text-to-speech output"
+description = "Bring your AI agent to life as an animated mascot in your tray or on your desktop, speaking with a self-hosted TTS server"
+repository = "https://github.com/Santuzius/riggy"
+readme = "README.md"
+keywords = ["mascot", "avatar", "tts", "lip-sync", "mcp"]
+categories = ["multimedia", "games"]
 
 [features]
 default = ["rhubarb", "espeak"]

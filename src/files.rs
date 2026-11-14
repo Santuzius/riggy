@@ -28,9 +28,19 @@ pub fn config_dir() -> PathBuf {
     xdg_dir("XDG_CONFIG_HOME", ".config").join("riggy")
 }
 
+/// `$XDG_DATA_HOME`, by default `~/.local/share`.
+pub fn xdg_data_home() -> PathBuf {
+    xdg_dir("XDG_DATA_HOME", ".local/share")
+}
+
 /// `$XDG_DATA_HOME/riggy`, by default `~/.local/share/riggy`.
 pub fn data_dir() -> PathBuf {
-    xdg_dir("XDG_DATA_HOME", ".local/share").join("riggy")
+    xdg_data_home().join("riggy")
+}
+
+/// `$XDG_CONFIG_HOME/autostart`, where the desktop session looks for programs to start at login.
+pub fn autostart_dir() -> PathBuf {
+    xdg_dir("XDG_CONFIG_HOME", ".config").join("autostart")
 }
 
 /// The folder with riggy's own defaults, if it is known.
@@ -53,9 +63,34 @@ pub fn default_config() -> String {
     default_config_file().and_then(|file| std::fs::read_to_string(file).ok()).unwrap_or_else(|| DEFAULT_CONFIG.into())
 }
 
+/// The folder of the models.
+pub fn models_dir() -> PathBuf {
+    data_dir().join("models")
+}
+
 /// The model file of `name`.
 pub fn model(name: &str) -> PathBuf {
-    data_dir().join("models").join(format!("{name}.glb"))
+    models_dir().join(format!("{name}.glb"))
+}
+
+/// The names of the installed models, sorted.
+pub fn installed_models() -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(models_dir())
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|e| e == "glb"))
+        .filter_map(|path| path.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
+        .collect();
+    names.sort();
+    names
+}
+
+/// The model `[avatar] name` picks: the user's setting, else the default.
+pub fn configured_model() -> String {
+    let name = |text: &str| toml::from_str::<toml::Table>(text).ok()?.get("avatar")?.get("name")?.as_str().map(str::to_owned);
+    std::fs::read_to_string(user_config()).ok().and_then(|text| name(&text)).or_else(|| name(&default_config())).unwrap_or_default()
 }
 
 /// The user's mapping file of `name`.

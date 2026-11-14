@@ -1,4 +1,4 @@
-//! The tray icon, drawn from SVG at startup: a head and shoulders, with sound waves while speech is on. Pixmaps instead of a theme icon name keep the colours, which KDE would otherwise recolour.
+//! The tray icon, drawn at startup from the start menu entry's SVG icon: a head and shoulders, with sound waves while speech is on. Pixmaps instead of a theme icon name keep the colours, which KDE would otherwise recolour.
 
 use ksni::Icon;
 use resvg::{tiny_skia, usvg};
@@ -6,6 +6,8 @@ use resvg::{tiny_skia, usvg};
 const SIZES: [u32; 6] = [16, 22, 24, 32, 48, 64];
 const SPEAKING: &str = "#3daee9";
 const SILENT: &str = "#8c8c8c";
+/// Drawn in [`SPEAKING`]'s colour.
+const ICON: &str = include_str!("../../../assets/riggy.svg");
 
 pub struct Icons {
     pub speaking: Vec<Icon>,
@@ -18,13 +20,15 @@ impl Icons {
     }
 }
 
+/// The icon of the start menu entry, recoloured, and without its sound waves while speech is off.
 fn svg(colour: &str, waves: bool) -> String {
-    let waves = if waves {
-        format!(r#"<g fill="none" stroke="{colour}" stroke-width="5" stroke-linecap="round"><path d="M45 13 Q51 22 45 31"/><path d="M53 6 Q63 22 53 38"/></g>"#)
-    } else {
-        String::new()
-    };
-    format!(r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><circle cx="25" cy="21" r="13" fill="{colour}"/><path d="M3 62 C3 45 12 38 25 38 C38 38 47 45 47 62 Z" fill="{colour}"/>{waves}</svg>"#)
+    let mut svg = ICON.replace(SPEAKING, colour);
+    if !waves {
+        let start = svg.find(r#"<g id="waves""#).expect("the icon has a waves group");
+        let end = start + svg[start..].find("</g>").expect("the waves group is closed") + "</g>".len();
+        svg.replace_range(start..end, "");
+    }
+    svg
 }
 
 fn rasterise(svg: &str) -> Vec<Icon> {
