@@ -12,17 +12,18 @@ click_through = false
 zoom = 0.0
 turn = 0.0
 
-# Idle motion; angles in degrees, rates in Hz.
+# Idle motion; angles in degrees, rates in Hz. The feet stay on the floor: the legs bend to follow the hips, and the feet step after a turn.
 [idle]
 breath_rate = 0.25
-breath_angle = 6.0
-sway_rate = 0.25
-sway_shift = 0.03
-sway_angle = 6.0
-head_rate = 0.15
-head_angle = 15.0
+breath_angle = 1.5
+sway_rate = 0.06
+sway_shift = 0.005   # sideways hip shift as a fraction of the figure's height
+sway_angle = 1.0
+head_rate = 0.08
+head_angle = 3.0
 arm_angle = 12.0     # upper arms out from vertical
 elbow_angle = 8.0
+speaking_calm = 0.3  # sway and head drift while speaking, as a fraction of their size in silence
 
 # Seconds between blinks (random in this range) and blink length.
 [blink]

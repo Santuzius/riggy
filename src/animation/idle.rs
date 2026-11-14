@@ -1,13 +1,18 @@
-//! Procedural idle motion on humanoid bones: breathing, a slow shift of weight between the legs, a drifting head, and relaxed arms.
+//! Procedural idle motion on humanoid bones: breathing, a slow shift of weight between the legs, a drifting head, and relaxed arms. While riggy speaks, sway and head drift shrink to `[idle] speaking_calm`, so the figure looks at the listener.
 //!
-//! Uses only VRM humanoid bone names, so it works the same on every backend. Angles from `[idle]` in `riggy.toml` are degrees, rates Hz.
+//! Uses only VRM humanoid bone names, so it works the same on every backend. Angles from `[idle]` in `riggy.toml` are degrees, rates Hz. The legs follow the hips through `stance`, which keeps the feet on the floor.
 
 use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
+use super::stance::{self, Stance};
 use crate::avatar::{AvatarSet, Humanoid, HumanoidBone as B};
 use crate::config::Config;
+use crate::speech::Voice;
+
+/// Seconds the motion takes to calm down when speech starts, and to come back after it.
+const CALM_TIME: f32 = 0.8;
 
 pub struct IdlePlugin;
 
@@ -22,11 +27,23 @@ fn drift(t: f32, rate: f32, phase: f32) -> f32 {
     0.65 * (TAU * rate * t + phase).sin() + 0.35 * (TAU * rate * 1.618 * t + 2.0 * phase + 1.3).sin()
 }
 
-fn idle(time: Res<Time>, config: Res<Config>, avatars: Query<&Humanoid>, mut transforms: Query<&mut Transform>) {
+/// Scale of sway and head drift: 1 in silence, `[idle] speaking_calm` while speaking, eased between them.
+struct Liveliness(f32);
+
+impl Default for Liveliness {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
+fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness: Local<Liveliness>, avatars: Query<(&Humanoid, Option<&Stance>)>, mut transforms: Query<&mut Transform>) {
     let c = &config.idle;
     let t = time.elapsed_secs();
     let rad = f32::to_radians;
-    for h in &avatars {
+    let wanted = if voice.speaking { c.speaking_calm.clamp(0.0, 1.0) } else { 1.0 };
+    liveliness.0 += (wanted - liveliness.0) * (1.0 - (-time.delta_secs() / CALM_TIME).exp());
+    let live = liveliness.0;
+    for (h, stance) in &avatars {
         // Breathing: the chest lifts and leans back a little on the in-breath.
         let breath = (TAU * c.breath_rate * t).sin();
         let lift = Quat::from_rotation_x(-rad(c.breath_angle) * 0.5 * breath);
@@ -34,27 +51,27 @@ fn idle(time: Res<Time>, config: Res<Config>, avatars: Query<&Humanoid>, mut tra
         h.rotate(B::UpperChest, lift, &mut transforms);
         h.rotate(B::Neck, lift.inverse(), &mut transforms);
 
-        // Weight shift: the pelvis moves sideways and its loaded side rises; the thighs counter-rotate so the feet stay put, the spine so the head stays upright.
-        let sway = drift(t, c.sway_rate, 0.0);
-        let shift = c.sway_shift * h.height * sway;
+        // Weight shift: the pelvis moves sideways and its loaded side rises; the legs bend so the feet stay put, the spine so the head stays upright.
+        let sway = live * drift(t, c.sway_rate, 0.0);
+        let shift = Vec3::X * c.sway_shift * h.height * sway;
         let roll = rad(c.sway_angle) * sway;
-        h.translate(B::Hips, Vec3::X * shift, &mut transforms);
-        h.rotate(B::Hips, Quat::from_rotation_z(roll), &mut transforms);
-        if let (Some(hip), Some(foot)) = (h.position(B::LeftUpperLeg), h.position(B::LeftFoot)) {
-            let lean = (shift / (hip.y - foot.y).max(1e-3)).atan();
-            let legs = Quat::from_rotation_z(-roll - lean);
-            h.rotate(B::LeftUpperLeg, legs, &mut transforms);
-            h.rotate(B::RightUpperLeg, legs, &mut transforms);
+        match stance {
+            Some(stance) => stance::stand(h, stance, shift, Quat::from_rotation_z(roll), &mut transforms),
+            None => {
+                h.translate(B::Hips, shift, &mut transforms);
+                h.rotate(B::Hips, Quat::from_rotation_z(roll), &mut transforms);
+            }
         }
         h.rotate(B::Spine, Quat::from_rotation_z(-roll * 0.6), &mut transforms);
         h.rotate(B::Chest, Quat::from_rotation_z(-roll * 0.4), &mut transforms);
 
         // Head: slow drift in all three axes, split between neck and head.
+        let angle = live * rad(c.head_angle);
         let head = Quat::from_euler(
             EulerRot::YXZ,
-            rad(c.head_angle) * drift(t, c.head_rate, 0.4),
-            rad(c.head_angle) * 0.6 * drift(t, c.head_rate * 0.8, 2.1),
-            rad(c.head_angle) * 0.4 * drift(t, c.head_rate * 0.6, 4.0),
+            angle * drift(t, c.head_rate, 0.4),
+            angle * 0.6 * drift(t, c.head_rate * 0.8, 2.1),
+            angle * 0.4 * drift(t, c.head_rate * 0.6, 4.0),
         );
         let half = Quat::IDENTITY.slerp(head, 0.4);
         h.rotate(B::Neck, half, &mut transforms);

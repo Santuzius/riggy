@@ -25,6 +25,8 @@ Positions and directions are in avatar space: +Y up, +Z the way the figure faces
 | `[[props]]` | simple shapes on a bone (`shape = "sphere"` or `"cube"`, `center`, `size`, `color`, `unlit`), e.g. a mouth interior or teeth the model lacks |
 | `[parts]` | free part name → node name, for non-humanoid avatars |
 
+With `hips` and the leg bones (`leftUpperLeg`, `leftLowerLeg`, `leftFoot`, the same on the right, `leftToes` and `rightToes` optional) mapped, the feet stay on the floor: the legs bend to follow the hips, the figure turns about the middle of its feet, and the feet step after a turn. The knees bend about the avatar's X axis.
+
 Expressions Riggy drives: `blink`, `blinkLeft`, `blinkRight`, the mouth shapes `aa`, `ih`, `ou`, `ee`, `oh`, and `cheeks` (raised with `ee` and `ih`).
 
 Node names match exactly, or after dropping the `_<digits>` suffix Sketchfab exports append. `RIGGY_DUMP_NODES=1 riggy` prints the model's node tree with joint positions, which helps to pick the bones. Changes to `[rest]`, `[expressions.*]` and `[[props]]` apply while Riggy runs, so mouth shapes can be tuned in the editor while the window shows the result; see [development.md](development.md) for the debug keys.

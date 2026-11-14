@@ -1,4 +1,4 @@
-//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
+//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure, with the lowest sole as seen on the window's bottom edge, so on the desktop the figure stands on the panel; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face, which follows the eyes. The figure turns (see `animation::stance`) as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -10,6 +10,7 @@ use bevy::window::CursorMoved;
 use riggy::control::Command;
 use riggy::settings::Settings;
 
+use crate::animation::stance::Stance;
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
 use crate::commands::Received;
 use crate::config::Config;
@@ -22,6 +23,12 @@ const FACE_HEIGHT: f32 = 0.32;
 const TURN_PER_PIXEL: f32 = 0.5;
 /// Seconds after the last wheel step at which the zoom is kept, so one turn of the wheel writes the settings once.
 const ZOOM_SETTLE: f32 = 0.5;
+/// Height in metres above the lowest vertex up to which vertices count as soles.
+const SOLE_HEIGHT: f32 = 0.02;
+/// Seconds the camera takes to follow the soles after a step.
+const GROUND_TIME: f32 = 0.25;
+/// Seconds the face close-up takes to follow the eyes.
+const FACE_TIME: f32 = 0.6;
 
 pub struct ViewPlugin;
 
@@ -33,7 +40,7 @@ impl Plugin for ViewPlugin {
             ..default()
         })
         .add_systems(Startup, setup)
-        .add_systems(Update, (turn_avatar, frame_avatar, zoom, place_camera).chain());
+        .add_systems(Update, (turn_avatar, frame_avatar, ground, follow_face, zoom, place_camera).chain());
     }
 }
 
@@ -43,6 +50,19 @@ struct Framing {
     full: Option<Shot>,
     face: Option<Shot>,
     zoom: f32,
+    /// Vertical shift of the full shot that puts the lowest sole as seen on the bottom edge.
+    ground: Option<f32>,
+    /// The vertices the figure stands on.
+    soles: Vec<Vertex>,
+    /// Bones whose midpoint the face close-up follows.
+    eyes: Vec<Entity>,
+}
+
+/// A mesh vertex as the weighted sum of points that move with entities: the joints that skin it, or the mesh itself.
+type Vertex = [(Entity, Vec3, f32); 4];
+
+fn position(vertex: &Vertex, transforms: &Query<&GlobalTransform>) -> Vec3 {
+    vertex.iter().filter(|(_, _, w)| *w > 0.0).filter_map(|&(e, p, w)| Some(transforms.get(e).ok()?.transform_point(p) * w)).sum()
 }
 
 /// Point the camera looks at and how much height it shows there.
@@ -85,19 +105,18 @@ fn setup(mut commands: Commands, config: Res<Config>) {
 
 /// Sets the full-figure framing from the mesh bounds once they exist, and the face framing from the humanoid's head.
 fn frame_avatar(
-    mut cameras: Query<(&mut Framing, &Projection)>,
+    mut cameras: Query<&mut Framing>,
     avatars: Query<(Entity, &GlobalTransform, Option<&Humanoid>), With<AvatarRoot>>,
     children: Query<&Children>,
     meshes: Query<(&GlobalTransform, Option<&Aabb>, &Mesh3d, Option<&SkinnedMesh>)>,
     mesh_assets: Res<Assets<Mesh>>,
     bindposes: Res<Assets<SkinnedMeshInverseBindposes>>,
-    joints: Query<&GlobalTransform>,
+    transforms: Query<&GlobalTransform>,
 ) {
-    let Ok((mut framing, projection)) = cameras.single_mut() else { return };
+    let Ok(mut framing) = cameras.single_mut() else { return };
     if framing.full.is_some() {
         return;
     }
-    let Projection::Perspective(perspective) = projection else { return };
     let Ok((root, root_transform, humanoid)) = avatars.single() else { return };
 
     let mut min = Vec3A::splat(f32::MAX);
@@ -131,49 +150,78 @@ fn frame_avatar(
     let center = Vec3::new((min.x + max.x) / 2.0, (bottom + top) / 2.0, (min.z + max.z) / 2.0);
     // The feet stand on the window's bottom edge, so on the desktop the figure stands on the panel; the margin stays above the head.
     let height = (top - bottom) * (1.0 + MARGIN);
-    let mut target = Vec3::new(center.x, bottom + height / 2.0, center.z);
-    // In perspective the soles nearer the camera than the target appear lower and those further away higher; shift the view so that the lowest one as seen touches the edge.
-    let vertices: Vec<Vec3> = children
+    let target = Vec3::new(center.x, bottom + height / 2.0, center.z);
+    // The soles: the vertices near the lowest one; `ground` keeps the lowest of them as seen on the window's edge.
+    let vertices: Vec<Vertex> = children
         .iter_descendants(root)
         .filter_map(|e| {
-            let (transform, _, mesh, skin) = meshes.get(e).ok()?;
-            Some(world_vertices(mesh_assets.get(&mesh.0)?, transform, skin.map(|s| (s, &*bindposes, &joints))))
+            let (_, _, mesh, skin) = meshes.get(e).ok()?;
+            Some(mesh_vertices(e, mesh_assets.get(&mesh.0)?, skin.map(|s| (s, &*bindposes))))
         })
         .flatten()
         .collect();
-    let distance = height / 2.0 / (perspective.fov / 2.0).tan();
-    let camera_z = target.z + distance;
-    let seen_lowest = vertices.iter().filter(|v| v.z < camera_z).map(|v| target.y + (v.y - target.y) * distance / (camera_z - v.z)).reduce(f32::min);
-    if let Some(seen) = seen_lowest {
-        target.y += seen - (target.y - height / 2.0);
-    }
+    let heights: Vec<f32> = vertices.iter().map(|v| position(v, &transforms).y).collect();
+    let lowest = heights.iter().copied().fold(f32::MAX, f32::min);
+    framing.soles = vertices.into_iter().zip(heights).filter(|&(_, y)| y < lowest + SOLE_HEIGHT).map(|(v, _)| v).collect();
     let full = Shot { target, height };
-    info!("avatar bounds: {:.2} m high, centre {:.2?}", top - bottom, center);
+    info!("avatar bounds: {:.2} m high, centre {:.2?}, {} sole vertices", top - bottom, center, framing.soles.len());
     framing.full = Some(full);
 
-    let face = humanoid.and_then(|h| {
-        let eyes = [HumanoidBone::LeftEye, HumanoidBone::RightEye].map(|b| h.position(b));
-        let p = match eyes {
-            [Some(l), Some(r)] => (l + r) / 2.0,
-            _ => h.position(HumanoidBone::Head)?,
-        };
-        Some(root_transform.transform_point(p))
-    });
+    let bones = |list: &[HumanoidBone]| -> Vec<Entity> { humanoid.map(|h| list.iter().filter_map(|&b| Some(h.get(b)?.entity)).collect()).unwrap_or_default() };
+    framing.eyes = match bones(&[HumanoidBone::LeftEye, HumanoidBone::RightEye]) {
+        eyes if eyes.len() == 2 => eyes,
+        _ => bones(&[HumanoidBone::Head]),
+    };
+    let eyes: Vec<Vec3> = framing.eyes.iter().filter_map(|&e| Some(transforms.get(e).ok()?.translation())).collect();
     framing.face = Some(Shot {
-        target: face.unwrap_or(center),
+        target: if eyes.is_empty() { center } else { eyes.iter().sum::<Vec3>() / eyes.len() as f32 },
         height: FACE_HEIGHT.min(full.height),
     });
 }
 
-/// A mesh's vertices in world space, skinned with the joints' current transforms.
-fn world_vertices(mesh: &Mesh, transform: &GlobalTransform, skin: Option<(&SkinnedMesh, &Assets<SkinnedMeshInverseBindposes>, &Query<&GlobalTransform>)>) -> Vec<Vec3> {
+/// Keeps the lowest sole as seen on the bottom edge of the full shot. In perspective the soles nearer the camera appear lower and those further away higher, so a turn or a step changes which one that is; while a foot is in the air the shift stays.
+fn ground(time: Res<Time>, mut cameras: Query<(&mut Framing, &Projection)>, stances: Query<&Stance>, transforms: Query<&GlobalTransform>) {
+    let Ok((mut framing, projection)) = cameras.single_mut() else { return };
+    let (Some(full), Projection::Perspective(perspective)) = (framing.full, projection) else { return };
+    if stances.iter().any(Stance::stepping) {
+        return;
+    }
+    let distance = full.height / 2.0 / (perspective.fov / 2.0).tan();
+    let camera_z = full.target.z + distance;
+    let seen_lowest = framing
+        .soles
+        .iter()
+        .map(|v| position(v, &transforms))
+        .filter(|v| v.z < camera_z)
+        .map(|v| full.target.y + (v.y - full.target.y) * distance / (camera_z - v.z))
+        .reduce(f32::min);
+    let Some(seen) = seen_lowest else { return };
+    let wanted = seen - (full.target.y - full.height / 2.0);
+    let k = 1.0 - (-time.delta_secs() / GROUND_TIME).exp();
+    framing.ground = Some(framing.ground.map_or(wanted, |now| now + (wanted - now) * k));
+}
+
+/// Lets the face close-up follow the eyes, slowly enough that it does not shake with every motion of the head.
+fn follow_face(time: Res<Time>, mut cameras: Query<&mut Framing>, transforms: Query<&GlobalTransform>) {
+    let Ok(mut framing) = cameras.single_mut() else { return };
+    let points: Vec<Vec3> = framing.eyes.iter().filter_map(|&e| Some(transforms.get(e).ok()?.translation())).collect();
+    let Some(face) = framing.face.as_mut() else { return };
+    if points.is_empty() {
+        return;
+    }
+    let eyes = points.iter().sum::<Vec3>() / points.len() as f32;
+    let k = 1.0 - (-time.delta_secs() / FACE_TIME).exp();
+    face.target += (eyes - face.target) * k;
+}
+
+/// The vertices of mesh entity `entity`, each tied to the joints that skin it, or to the mesh entity itself.
+fn mesh_vertices(entity: Entity, mesh: &Mesh, skin: Option<(&SkinnedMesh, &Assets<SkinnedMeshInverseBindposes>)>) -> Vec<Vertex> {
     let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { return Vec::new() };
-    let skinning = skin.and_then(|(skin, bindposes, joints)| {
+    let skinning = skin.and_then(|(skin, bindposes)| {
         let inverse = bindposes.get(&skin.inverse_bindposes)?;
-        let matrices: Vec<Mat4> = skin.joints.iter().zip(inverse.iter()).map(|(&joint, ibm)| Some(joints.get(joint).ok()?.to_matrix() * *ibm)).collect::<Option<_>>()?;
         let Some(VertexAttributeValues::Uint16x4(indices)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX) else { return None };
         let Some(VertexAttributeValues::Float32x4(weights)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT) else { return None };
-        Some((matrices, indices, weights))
+        Some((skin, inverse, indices, weights))
     });
     positions
         .iter()
@@ -181,8 +229,11 @@ fn world_vertices(mesh: &Mesh, transform: &GlobalTransform, skin: Option<(&Skinn
         .map(|(i, &p)| {
             let p = Vec3::from(p);
             match &skinning {
-                Some((matrices, indices, weights)) => (0..4).map(|k| matrices[indices[i][k] as usize].transform_point3(p) * weights[i][k]).sum(),
-                None => transform.transform_point(p),
+                Some((skin, inverse, indices, weights)) => std::array::from_fn(|k| {
+                    let joint = indices[i][k] as usize;
+                    (skin.joints[joint], inverse[joint].transform_point3(p), weights[i][k])
+                }),
+                None => [(entity, p, 1.0), (entity, p, 0.0), (entity, p, 0.0), (entity, p, 0.0)],
             }
         })
         .collect()
@@ -212,7 +263,7 @@ fn turn_avatar(
     mut cursor: MessageReader<CursorMoved>,
     mut commands: MessageReader<Received>,
     mut turning: Local<Turning>,
-    mut avatars: Query<(&mut Transform, Ref<AvatarRoot>)>,
+    mut stances: Query<&mut Stance>,
 ) {
     let mut changed = false;
     for Received(command) in commands.read() {
@@ -239,9 +290,9 @@ fn turn_avatar(
             remember(|settings| settings.turn = degrees);
         }
     }
-    for (mut transform, root) in &mut avatars {
-        if changed || root.is_added() {
-            transform.rotation = Quat::from_rotation_y(turning.degrees.to_radians());
+    for mut stance in &mut stances {
+        if changed || stance.is_added() {
+            stance.wanted = turning.degrees.to_radians();
         }
     }
 }
@@ -293,7 +344,8 @@ fn zoom(
 /// Places the camera in front of the avatar (+Z) so the current shot fills the window height.
 fn place_camera(mut cameras: Query<(&Framing, &Projection, &mut Transform)>) {
     let Ok((framing, projection, mut transform)) = cameras.single_mut() else { return };
-    let (Some(full), Some(face)) = (framing.full, framing.face) else { return };
+    let (Some(mut full), Some(face)) = (framing.full, framing.face) else { return };
+    full.target.y += framing.ground.unwrap_or(0.0);
     let Projection::Perspective(perspective) = projection else { return };
     // Ease so that equal wheel steps feel like equal zoom steps.
     let t = framing.zoom;

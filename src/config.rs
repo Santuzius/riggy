@@ -139,20 +139,23 @@ pub struct IdleConfig {
     pub arm_angle: f32,
     /// Bend of the elbows.
     pub elbow_angle: f32,
+    /// Sway and head drift while speaking, as a fraction of their size in silence.
+    pub speaking_calm: f32,
 }
 
 impl Default for IdleConfig {
     fn default() -> Self {
         Self {
             breath_rate: 0.25,
-            breath_angle: 1.0,
-            sway_rate: 0.07,
-            sway_shift: 0.004,
-            sway_angle: 1.2,
-            head_rate: 0.15,
-            head_angle: 2.5,
+            breath_angle: 1.5,
+            sway_rate: 0.06,
+            sway_shift: 0.005,
+            sway_angle: 1.0,
+            head_rate: 0.08,
+            head_angle: 3.0,
             arm_angle: 12.0,
             elbow_angle: 8.0,
+            speaking_calm: 0.3,
         }
     }
 }
