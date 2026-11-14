@@ -123,19 +123,24 @@ pub fn visemes(m: &Measure, silence: f32, loud: f32) -> [f32; 5] {
     shape(m).map(|w| w * open)
 }
 
-/// How far the mouth opens (0–1): the level between `silence` and `loud`, on a dB scale.
+/// How far the mouth opens (0–1): the level between `silence` and `loud`, on a dB scale, reduced for nasal hums.
+///
+/// "m" and "n" are voiced through the nose with the mouth (nearly) closed; their sound has almost all power at the voice's fundamental (`f1` near the 200 Hz band edge) and very little above 1.8 kHz.
 pub fn opening(m: &Measure, silence: f32, loud: f32) -> f32 {
     let db = |x: f32| 20.0 * x.max(1e-6).log10();
-    ((db(m.level) - db(silence)) / (db(loud) - db(silence))).clamp(0.0, 1.0)
+    let open = ((db(m.level) - db(silence)) / (db(loud) - db(silence))).clamp(0.0, 1.0);
+    let nasal = (1.0 - smoothstep(235.0, 270.0, m.f1)) * (1.0 - smoothstep(-18.0, -12.0, m.front));
+    open * (1.0 - 0.85 * nasal)
 }
 
 /// Which mouth shape the sound calls for, as viseme weights summing to 1: `front` splits front vowels (ee, ih) from back ones (ou, oh, aa), and `f1` orders each group from closed to open.
 pub fn shape(m: &Measure) -> [f32; 5] {
-    // Measured medians of front: ee +2, ih +1.5 dB; aa −7, ou −22, oh −33 dB.
-    let front = smoothstep(-5.0, 2.0, m.front);
     // Measured medians of f1: ee 330, ih 500 Hz; ou 375, oh 550, aa 640 Hz.
     let front_height = smoothstep(350.0, 480.0, m.f1);
     let height = smoothstep(350.0, 650.0, m.f1);
+    // Measured medians of front: ee +2, ih +1.5 dB; aa −7, ou −22, oh −33 dB. Unstressed "ee" at a word's end ("Riggy") drops to about −5 dB, so for closed vowels, where the choice is ee or ou, the split lies lower than for open ones, where it is ih or aa.
+    let split = -12.0 + 9.0 * height;
+    let front = smoothstep(split - 4.0, split + 4.0, m.front);
     let ou = (1.0 - height / 0.4).clamp(0.0, 1.0);
     let aa = ((height - 0.7) / 0.3).clamp(0.0, 1.0);
     let oh = 1.0 - ou - aa;
@@ -177,6 +182,14 @@ mod tests {
                 assert_eq!(largest(w), expected, "rate {rate}, F1 {f1}, F2 {f2}: {m:?} → {w:?}");
             }
         }
+    }
+
+    #[test]
+    fn hums_keep_the_mouth_nearly_closed() {
+        // "m": power at the fundamental only.
+        let hum = measure(48_000, &[(220.0, 0.1)]);
+        let vowel = measure(48_000, &[(300.0, 0.1), (2700.0, 0.03)]);
+        assert!(opening(&hum, 0.01, 0.12) < 0.25 * opening(&vowel, 0.01, 0.12), "{hum:?} vs {vowel:?}");
     }
 
     #[test]
