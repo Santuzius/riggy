@@ -20,7 +20,7 @@ use crate::audio::{self, Shared, Utterance};
 use crate::avatar::AvatarSet;
 use crate::config::{Config, LipsyncConfig, LipsyncMode};
 use crate::lipsync::{CueSource, Request, sound};
-use crate::mouth::MouthTarget;
+use crate::animation::mouth::MouthTarget;
 
 pub struct SpeechPlugin;
 
