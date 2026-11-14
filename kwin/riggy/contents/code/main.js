@@ -28,6 +28,19 @@ function setUp(window) {
     window.skipSwitcher = true;
     window.onAllDesktops = true;
     place(window);
+    // riggy widens or narrows its window to fit the figure; keep the bottom right corner where it was, wherever it has been dragged.
+    window.frameGeometryChanged.connect((old) => {
+        const frame = window.frameGeometry;
+        if (frame.width === old.width && frame.height === old.height) {
+            return;
+        }
+        window.frameGeometry = {
+            x: old.x + old.width - frame.width,
+            y: old.y + old.height - frame.height,
+            width: frame.width,
+            height: frame.height
+        };
+    });
 }
 
 workspace.windowAdded.connect(setUp);
