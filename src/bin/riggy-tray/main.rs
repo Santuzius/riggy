@@ -6,6 +6,7 @@ mod avatar;
 mod icon;
 mod kwin;
 mod menu;
+mod theme;
 mod tray;
 
 use std::time::Duration;
@@ -46,6 +47,7 @@ fn main() {
         }
     };
     handle.update(|tray: &mut RiggyTray| {
+        tray.dark_panel = theme::dark_scheme();
         tray.avatar_running = tray.avatar.running();
         if tray.settings.avatar && !tray.avatar_running {
             tray.start_avatar();
@@ -58,7 +60,8 @@ fn main() {
             true if handle.update(|tray: &mut RiggyTray| tray.voices.is_empty()).unwrap_or(false) => speech_server::voices(&url),
             _ => Vec::new(),
         };
-        handle.update(|tray: &mut RiggyTray| tray.refresh(server_up, voices));
+        let dark_panel = theme::dark_scheme();
+        handle.update(|tray: &mut RiggyTray| tray.refresh(server_up, voices, dark_panel));
         std::thread::sleep(POLL);
     }
 }

@@ -1,38 +1,80 @@
-//! The tray icon, drawn at startup from the start menu entry's SVG icon: a head and shoulders, with sound waves while speech is on. Pixmaps instead of a theme icon name keep the colours, which KDE would otherwise recolour.
+//! The tray icon, rasterised at startup from `assets/icons/`: a ring, thick while the avatar is shown, around a dot while speech is on.
+//!
+//! The SVGs carry KDE's `current-color-scheme` classes. Pixmaps instead of theme icon names keep the orange dot, which KDE would otherwise recolour; so each state is drawn twice, with a dark and a light text colour, and [`Icons::pick`] hands out the one that contrasts with the panel.
 
 use ksni::Icon;
 use resvg::{tiny_skia, usvg};
 
 const SIZES: [u32; 6] = [16, 22, 24, 32, 48, 64];
-const SPEAKING: &str = "#3daee9";
-const SILENT: &str = "#8c8c8c";
-/// Drawn in [`SPEAKING`]'s colour.
-const ICON: &str = include_str!("../../../assets/riggy.svg");
+/// The text colour in the SVGs, used on light panels.
+const DARK_TEXT: &str = "#232629";
+/// Breeze Dark's text colour, used on dark panels.
+const LIGHT_TEXT: &str = "#fcfcfc";
 
+/// What the icon shows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TrayState {
+    pub speech: bool,
+    pub avatar: bool,
+}
+
+impl TrayState {
+    fn svg(self) -> &'static str {
+        match (self.speech, self.avatar) {
+            (true, true) => include_str!("../../../assets/icons/tray-tts-avatar.svg"),
+            (true, false) => include_str!("../../../assets/icons/tray-tts.svg"),
+            (false, true) => include_str!("../../../assets/icons/tray-avatar.svg"),
+            (false, false) => include_str!("../../../assets/icons/tray-off.svg"),
+        }
+    }
+
+    const ALL: [Self; 4] = [
+        Self { speech: true, avatar: true },
+        Self { speech: true, avatar: false },
+        Self { speech: false, avatar: true },
+        Self { speech: false, avatar: false },
+    ];
+}
+
+/// Every state in both colour variants, each at every size in [`SIZES`].
 pub struct Icons {
-    pub speaking: Vec<Icon>,
-    pub silent: Vec<Icon>,
+    /// Per state as in [`TrayState::ALL`]: (for light panels, for dark panels).
+    variants: Vec<(TrayState, Vec<Icon>, Vec<Icon>)>,
 }
 
 impl Icons {
     pub fn draw() -> Self {
-        Self { speaking: rasterise(&svg(SPEAKING, true)), silent: rasterise(&svg(SILENT, false)) }
+        let variants = TrayState::ALL
+            .into_iter()
+            .map(|state| {
+                let svg = state.svg();
+                (state, rasterise(&with_plain_colours(svg)), rasterise(&with_plain_colours(&svg.replace(DARK_TEXT, LIGHT_TEXT))))
+            })
+            .collect();
+        Self { variants }
+    }
+
+    /// The icon of `state` that contrasts with a dark or light panel.
+    pub fn pick(&self, state: TrayState, dark_panel: bool) -> Vec<Icon> {
+        let (_, on_light, on_dark) = self.variants.iter().find(|(s, _, _)| *s == state).expect("every state is drawn");
+        if dark_panel { on_dark.clone() } else { on_light.clone() }
     }
 }
 
-/// The icon of the start menu entry, recoloured, and without its sound waves while speech is off.
-fn svg(colour: &str, waves: bool) -> String {
-    let mut svg = ICON.replace(SPEAKING, colour);
-    if !waves {
-        let start = svg.find(r#"<g id="waves""#).expect("the icon has a waves group");
-        let end = start + svg[start..].find("</g>").expect("the waves group is closed") + "</g>".len();
-        svg.replace_range(start..end, "");
+/// The SVG with each `class="NAME" fill="currentColor"` filled in the colour its `.NAME{color:…}` rule in the `<style>` block sets, which resvg does not resolve.
+fn with_plain_colours(svg: &str) -> String {
+    let style = svg.split_once("<style").and_then(|(_, rest)| rest.split_once("</style>")).map_or("", |(style, _)| style);
+    let mut svg = svg.to_owned();
+    for rule in style.split('.').skip(1) {
+        let Some((class, body)) = rule.split_once('{') else { continue };
+        let Some(colour) = body.split_once("color:").map(|(_, value)| value.trim_end_matches(['}', ' ']).split(['}', ';']).next().unwrap_or_default().trim()) else { continue };
+        svg = svg.replace(&format!(r#"class="{class}" fill="currentColor""#), &format!(r#"fill="{colour}""#));
     }
     svg
 }
 
 fn rasterise(svg: &str) -> Vec<Icon> {
-    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("the tray icon is valid SVG");
+    let tree = usvg::Tree::from_str(svg, &usvg::Options::default()).expect("the tray icons are valid SVG");
     SIZES
         .iter()
         .filter_map(|&size| {
@@ -46,9 +88,10 @@ fn rasterise(svg: &str) -> Vec<Icon> {
 
 /// tiny-skia's premultiplied RGBA as the StatusNotifierItem pixmap format: ARGB, not premultiplied, in network byte order.
 fn argb(rgba: &[u8]) -> Vec<u8> {
-    rgba.chunks_exact(4)
-        .flat_map(|pixel| {
-            let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
+    let (pixels, _) = rgba.as_chunks::<4>();
+    pixels
+        .iter()
+        .flat_map(|&[r, g, b, a]| {
             let straight = |c: u8| if a == 0 { 0 } else { ((c as u32 * 255 + a as u32 / 2) / a as u32).min(255) as u8 };
             [a, straight(r), straight(g), straight(b)]
         })
@@ -60,15 +103,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn both_icons_have_visible_pixels_at_every_size() {
+    fn every_state_has_visible_pixels_at_every_size_in_both_variants() {
         let icons = Icons::draw();
-        for set in [&icons.speaking, &icons.silent] {
-            assert_eq!(set.len(), SIZES.len());
-            for icon in set {
-                assert_eq!(icon.data.len(), (icon.width * icon.height * 4) as usize);
-                assert!(icon.data.chunks_exact(4).any(|pixel| pixel[0] == 255));
+        for state in TrayState::ALL {
+            for set in [icons.pick(state, false), icons.pick(state, true)] {
+                assert_eq!(set.len(), SIZES.len());
+                for icon in set {
+                    assert_eq!(icon.data.len(), (icon.width * icon.height * 4) as usize);
+                    // A one-unit ring drawn at 16 px covers no pixel fully.
+                    assert!(icon.data.as_chunks::<4>().0.iter().any(|pixel| pixel[0] > 100), "{state:?} at {} px is blank", icon.width);
+                }
             }
         }
+    }
+
+    #[test]
+    fn the_dark_panel_variant_is_light() {
+        let icons = Icons::draw();
+        let state = TrayState { speech: false, avatar: false };
+        let brightest = |set: Vec<Icon>| set[0].data.as_chunks::<4>().0.iter().filter(|p| p[0] > 100).map(|p| p[1]).max().unwrap();
+        assert!(brightest(icons.pick(state, true)) > 200);
+        assert!(brightest(icons.pick(state, false)) < 60);
+    }
+
+    #[test]
+    fn style_colours_replace_current_color() {
+        let svg = r#"<svg><style>.ColorScheme-Text{color:#232629}.ColorScheme-NeutralText{color:#f67400}</style><path class="ColorScheme-Text" fill="currentColor"/><circle class="ColorScheme-NeutralText" fill="currentColor"/></svg>"#;
+        let plain = with_plain_colours(svg);
+        assert!(plain.contains(r##"<path fill="#232629"/>"##) && plain.contains(r##"<circle fill="#f67400"/>"##), "{plain}");
     }
 
     #[test]

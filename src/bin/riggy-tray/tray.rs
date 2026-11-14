@@ -22,6 +22,8 @@ pub struct RiggyTray {
     /// Start the avatar again once it has closed, so it reads changed files or choices.
     pub restart_avatar: bool,
     pub icons: Icons,
+    /// The desktop uses a dark colour scheme, so the icon is drawn light.
+    pub dark_panel: bool,
 }
 
 impl RiggyTray {
@@ -35,6 +37,7 @@ impl RiggyTray {
             avatar_running: false,
             restart_avatar: false,
             icons: Icons::draw(),
+            dark_panel: false,
         }
     }
 
@@ -50,9 +53,10 @@ impl RiggyTray {
         self.save();
     }
 
-    /// Takes the speech server's state and the avatar's, as the poll found them; starts an avatar that should run.
-    pub fn refresh(&mut self, server_up: bool, voices: Vec<String>) {
+    /// Takes the speech server's state, the avatar's and the colour scheme, as the poll found them; starts an avatar that should run.
+    pub fn refresh(&mut self, server_up: bool, voices: Vec<String>, dark_panel: bool) {
         self.server_up = server_up;
+        self.dark_panel = dark_panel;
         if !server_up {
             self.voices.clear();
         } else if !voices.is_empty() {

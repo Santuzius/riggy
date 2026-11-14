@@ -5,6 +5,7 @@ use ksni::{Icon, MenuItem, ToolTip};
 use riggy::control::{Command as AvatarCommand, LipsyncMode};
 use riggy::files;
 
+use crate::icon::TrayState;
 use crate::tray::{RiggyTray, lipsync_label, open};
 
 const TEMPOS: [f32; 6] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
@@ -46,7 +47,7 @@ fn submenu(label: &str, items: Vec<MenuItem<RiggyTray>>) -> MenuItem<RiggyTray> 
 
 impl RiggyTray {
     fn icon(&self) -> Vec<Icon> {
-        if self.speech_off { self.icons.silent.clone() } else { self.icons.speaking.clone() }
+        self.icons.pick(TrayState { speech: !self.speech_off, avatar: self.avatar_running }, self.dark_panel)
     }
 
     fn speech_items(&self) -> Vec<MenuItem<Self>> {
