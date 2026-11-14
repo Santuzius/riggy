@@ -46,6 +46,10 @@ rhubarb = "rhubarb"
 recognizer = "phonetic"
 cue_time = 0.05
 
+# Mouth shapes per Rhubarb shape, replacing the built-in table in src/rhubarb.rs (applies live). Rhubarb's shapes: A closed (m, b, p), B teeth together, lips apart (most consonants, "ee"), C open ("eh"), D wide open ("aa"), E slightly rounded, F puckered ("oo", "w"), G f/v, H l, X rest.
+[lipsync.cues]
+# B = { ee = 0.85 }
+
 # Speech socket; empty means $XDG_RUNTIME_DIR/riggy.sock (applies at startup).
 [speech]
 socket = ""

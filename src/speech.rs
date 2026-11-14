@@ -124,7 +124,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
             state.frames += 1;
             state.cued_frames += frame.cue.is_some() as u32;
             if let Some(cue) = frame.cue {
-                *target = MouthTarget { weights: cue.visemes(), cued: true };
+                *target = MouthTarget { weights: cue.visemes(&config.lipsync.cues), cued: true };
                 continue;
             }
             target.cued = false;

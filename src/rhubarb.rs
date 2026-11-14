@@ -4,6 +4,7 @@
 //!
 //! Rhubarb's mouth shapes (from its README, https://github.com/DanielSWolf/rhubarb-lip-sync): A closed (m, b, p), B slightly open with clenched teeth (most consonants, "ee"), C open ("eh"), D wide open ("aa"), E slightly rounded ("aw", "er"), F puckered ("oo", "w"), G upper teeth on the lower lip (f, v), H tongue raised (l), X at rest.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -13,9 +14,10 @@ use bevy::log::{info, warn};
 use serde::Deserialize;
 
 use crate::audio::Shared;
+use crate::avatar::ExpressionPreset;
 
 /// A Rhubarb mouth shape.
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum MouthCue {
     A,
     B,
@@ -29,11 +31,24 @@ pub enum MouthCue {
 }
 
 impl MouthCue {
-    /// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh).
-    pub fn visemes(self) -> [f32; 5] {
+    /// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh); `overrides` (`[lipsync.cues]`) replaces a shape's defaults, e.g. `B = { ee = 0.9 }`.
+    pub fn visemes(self, overrides: &HashMap<MouthCue, HashMap<String, f32>>) -> [f32; 5] {
+        let Some(weights) = overrides.get(&self) else { return self.default_visemes() };
+        let mut out = [0.0; 5];
+        for (name, &w) in weights {
+            match ExpressionPreset::VISEMES.iter().position(|v| v.as_str() == name) {
+                Some(i) => out[i] = w,
+                None => warn!("[lipsync.cues] {self:?}: {name} is not a mouth shape (aa, ih, ou, ee, oh)"),
+            }
+        }
+        out
+    }
+
+    fn default_visemes(self) -> [f32; 5] {
         match self {
             Self::A | Self::X => [0.0; 5],
-            Self::B => [0.0, 0.0, 0.0, 0.4, 0.0],
+            // Rhubarb uses B for the long "ee" as well as most consonants: spread lips, teeth showing.
+            Self::B => [0.0, 0.0, 0.0, 0.85, 0.0],
             Self::C => [0.3, 0.4, 0.0, 0.0, 0.0],
             Self::D => [0.9, 0.0, 0.0, 0.0, 0.0],
             Self::E => [0.0, 0.0, 0.0, 0.0, 0.7],
@@ -232,6 +247,13 @@ mod tests {
         assert_eq!(cue_at(&cues, 400, 100), Some(MouthCue::A));
         assert_eq!(cue_at(&cues, 400, 399), Some(MouthCue::D));
         assert_eq!(cue_at(&cues, 400, 400), None);
+    }
+
+    #[test]
+    fn config_overrides_a_shape() {
+        let config: crate::config::Config = toml::from_str("[lipsync.cues]\nB = { ee = 0.9, ih = 0.1 }").unwrap();
+        assert_eq!(MouthCue::B.visemes(&config.lipsync.cues), [0.0, 0.1, 0.0, 0.9, 0.0]);
+        assert_eq!(MouthCue::D.visemes(&config.lipsync.cues), MouthCue::D.default_visemes());
     }
 
     #[test]

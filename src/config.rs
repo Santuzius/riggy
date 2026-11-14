@@ -42,6 +42,8 @@ pub struct LipsyncConfig {
     pub recognizer: String,
     /// Time constant in seconds with which the mouth follows Rhubarb's shapes.
     pub cue_time: f32,
+    /// Mouth shape weights per Rhubarb shape, replacing the built-in ones, e.g. `B = { ee = 0.9 }`.
+    pub cues: std::collections::HashMap<crate::rhubarb::MouthCue, std::collections::HashMap<String, f32>>,
 }
 
 impl Default for LipsyncConfig {
@@ -51,6 +53,7 @@ impl Default for LipsyncConfig {
             rhubarb: "rhubarb".into(),
             recognizer: "phonetic".into(),
             cue_time: 0.05,
+            cues: Default::default(),
         }
     }
 }
