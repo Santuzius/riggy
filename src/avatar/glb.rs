@@ -4,6 +4,8 @@
 //! - `scale`: factor from model units to metres;
 //! - `[humanoid]`: VRM humanoid bone name → node name;
 //! - `[parts]`: free part name → node name, for non-humanoid avatars;
+//! - `[machine]`: how a machine avatar moves (see [`Machine`]); with it the avatar is a machine, otherwise a humanoid;
+//! - `[material]`: textures for a model that comes without them (see [`MaterialSpec`]);
 //! - `[[props]]`: extra shapes attached to a bone, such as a dark mouth interior or teeth the model lacks: `{ bone, shape = "sphere" | "cube", center = [x, y, z], size = [x, y, z], color = [r, g, b], unlit }`. Centre and size (radii for a sphere, half extents for a cube) are in avatar space and model units, as the shape sits in the rest pose; it then follows the bone.
 //! - `[rest]`: node name → bone change as in an expression, applied permanently; corrects the model's rest pose (for example lips that do not quite close).
 //! - `[expressions.<name>]`: node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at weight 1. `rotate` is an axis-angle vector in degrees (direction = axis, length = angle), `translate` an offset in model units; both are in avatar space.
@@ -19,11 +21,12 @@ use std::time::{Duration, SystemTime};
 use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::asset::AssetPath;
 use bevy::math::Affine3A;
+use bevy::image::ImageLoaderSettings;
 use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, PoseBone, avatar_space};
+use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, avatar_space};
 use crate::config::{AvatarKind, Config};
 
 /// Asset source id under which the model's directory is registered.
@@ -38,6 +41,29 @@ pub struct Mapping {
     pub rest: HashMap<String, BoneDelta>,
     pub expressions: HashMap<String, HashMap<String, BoneDelta>>,
     pub props: Vec<PropSpec>,
+    pub machine: Option<Machine>,
+    pub material: MaterialSpec,
+}
+
+/// Textures laid onto every material of the model, as files in the model's own folder (`models/NAME/`, where `riggy install NAME.glb TEXTURE ...` puts them). A model whose file brings its textures needs none of this.
+#[derive(Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct MaterialSpec {
+    pub base_color: Option<String>,
+    /// Packed occlusion (red), roughness (green) and metalness (blue).
+    pub orm: Option<String>,
+    /// Normal map in OpenGL convention (green up).
+    pub normal: Option<String>,
+    /// Where the model glows; its brightness follows the expression `glow`.
+    pub emission: Option<String>,
+    /// Linear RGB of the emission at `glow` weight 1; it may exceed 1 for a brighter glow.
+    pub emission_color: [f32; 3],
+}
+
+impl Default for MaterialSpec {
+    fn default() -> Self {
+        Self { base_color: None, orm: None, normal: None, emission: None, emission_color: [1.0; 3] }
+    }
 }
 
 impl Default for Mapping {
@@ -49,6 +75,8 @@ impl Default for Mapping {
             rest: HashMap::new(),
             expressions: HashMap::new(),
             props: Vec::new(),
+            machine: None,
+            material: MaterialSpec::default(),
         }
     }
 }
@@ -103,12 +131,6 @@ fn read_mapping(path: &Path) -> Option<Mapping> {
     toml::from_str(&text).map_err(|err| error!("mapping {}: {err}", path.display())).ok()
 }
 
-/// Named non-humanoid parts of the avatar, on the avatar root entity.
-#[derive(Component, Debug, Default)]
-pub struct Parts {
-    pub bones: HashMap<String, PoseBone>,
-}
-
 /// One bone change of an expression at weight 1.
 #[derive(Debug, Clone, Copy)]
 struct Delta {
@@ -130,6 +152,9 @@ pub struct GlbRig {
     rest_deltas: Vec<Delta>,
     /// Avatar-space transform of every node at load time (the rest pose), for placing props.
     rest_spaces: HashMap<Entity, Affine3A>,
+    /// Materials with an emission texture, whose emission follows the expression `glow`, and its colour at weight 1.
+    glowing: Vec<Handle<StandardMaterial>>,
+    glow_color: LinearRgba,
 }
 
 #[derive(Resource)]
@@ -207,6 +232,9 @@ fn resolve_avatar(
     children: Query<&Children>,
     names: Query<&Name>,
     tree: TransformTree,
+    surfaces: Query<(&Mesh3d, &MeshMaterial3d<StandardMaterial>)>,
+    config: Res<Config>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -261,16 +289,79 @@ fn resolve_avatar(
         expressions: HashMap::new(),
         rest_deltas: Vec::new(),
         rest_spaces,
+        glowing: Vec::new(),
+        glow_color: {
+            let [r, g, b] = mapping.material.emission_color;
+            LinearRgba::rgb(r, g, b)
+        },
     };
     rig.driven.extend(humanoid.bones.values().chain(parts.bones.values()).map(|b| (b.entity, *b)));
     rig.set_expressions(&mapping, &tree);
     rig.spawn_props(&mapping, &mut commands, &mut meshes, &mut materials);
+    let model = config.avatar.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
+    let surfaces = children.iter_descendants(root).filter_map(|e| surfaces.get(e).ok()).map(|(mesh, material)| (mesh.0.clone(), material.0.clone()));
+    rig.glowing = apply_material(&mapping.material, &model, surfaces, &asset_server, &mut meshes, &mut materials);
 
     let mut avatar = commands.entity(root);
     avatar.insert((rig, parts));
-    if !humanoid.bones.is_empty() {
-        avatar.insert(humanoid);
+    match mapping.machine {
+        Some(machine) => {
+            avatar.insert(machine);
+        }
+        None if !humanoid.bones.is_empty() => {
+            avatar.insert(humanoid);
+        }
+        None => {}
     }
+}
+
+/// Lays the textures of `spec` onto the materials of `surfaces` (mesh and material of each) and returns the materials that got an emission texture.
+fn apply_material(
+    spec: &MaterialSpec,
+    model: &str,
+    surfaces: impl Iterator<Item = (Handle<Mesh>, Handle<StandardMaterial>)>,
+    asset_server: &AssetServer,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+) -> Vec<Handle<StandardMaterial>> {
+    let load = |file: &Option<String>, srgb: bool| {
+        file.as_ref().map(|file| {
+            let path = AssetPath::from_path(&Path::new(model).join(file)).into_owned().with_source(AssetSourceId::from(SOURCE));
+            asset_server.load_builder().with_settings(move |s: &mut ImageLoaderSettings| s.is_srgb = srgb).load::<Image>(path)
+        })
+    };
+    let base_color = load(&spec.base_color, true);
+    let orm = load(&spec.orm, false);
+    let normal = load(&spec.normal, false);
+    let emission = load(&spec.emission, true);
+    let mut glowing = Vec::new();
+    for (mesh, handle) in surfaces {
+        if normal.is_some()
+            && let Some(mut mesh) = meshes.get_mut(&mesh)
+            && let Err(err) = mesh.generate_tangents()
+        {
+            warn!("material: no tangents for the normal map: {err}");
+        }
+        let Some(mut material) = materials.get_mut(&handle) else { continue };
+        if base_color.is_some() {
+            material.base_color = Color::WHITE;
+            material.base_color_texture = base_color.clone();
+        }
+        if orm.is_some() {
+            material.metallic = 1.0;
+            material.perceptual_roughness = 1.0;
+            material.metallic_roughness_texture = orm.clone();
+            material.occlusion_texture = orm.clone();
+        }
+        if normal.is_some() {
+            material.normal_map_texture = normal.clone();
+        }
+        if emission.is_some() {
+            material.emissive_texture = emission.clone();
+            glowing.push(handle.clone());
+        }
+    }
+    glowing
 }
 
 impl GlbRig {
@@ -360,8 +451,16 @@ fn reset_bones(rigs: Query<&GlbRig>, mut transforms: Query<&mut Transform>) {
     }
 }
 
-fn apply_expressions(rigs: Query<(&GlbRig, &Expressions)>, mut transforms: Query<&mut Transform>) {
+fn apply_expressions(rigs: Query<(&GlbRig, &Expressions)>, mut transforms: Query<&mut Transform>, mut materials: ResMut<Assets<StandardMaterial>>) {
     for (rig, expressions) in &rigs {
+        let glow = rig.glow_color * expressions.get(ExpressionName::Custom("glow".into()));
+        for handle in &rig.glowing {
+            if materials.get(handle).is_some_and(|m| m.emissive != glow)
+                && let Some(mut material) = materials.get_mut(handle)
+            {
+                material.emissive = glow;
+            }
+        }
         for (name, &weight) in &expressions.weights {
             if weight <= 0.0 {
                 continue;
@@ -432,5 +531,21 @@ fn dump_nodes(
         let mut out = String::from("avatar nodes (avatar-space position):\n");
         walk(root, 0, &mut out, &children, &names, &tree);
         info!("{out}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_mappings_read_as_a_humanoid_and_a_machine() {
+        let humanoid: Mapping = toml::from_str(include_str!("../../assets/avatars/cyborg_girl.toml")).unwrap();
+        assert!(humanoid.machine.is_none() && !humanoid.humanoid.is_empty());
+        let machine: Mapping = toml::from_str(include_str!("../../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml")).unwrap();
+        let motion = machine.machine.unwrap();
+        assert_eq!(machine.parts[&motion.body], "MassCenterControl");
+        assert!(motion.spin.keys().all(|part| machine.parts.contains_key(part)));
+        assert!(machine.material.emission.is_some());
     }
 }

@@ -1,6 +1,6 @@
 # Avatars
 
-An avatar is a rigged 3D model in GLB format plus a mapping file that tells Riggy which bones to move and how its mouth shapes look.
+An avatar is a rigged 3D model in GLB format plus a mapping file that tells Riggy which bones to move and how its mouth shapes look. It is a humanoid, which stands, breathes, blinks and moves its mouth, or a machine, which floats and spins its parts, and opens and glows while it speaks.
 
 ## Installing
 
@@ -10,9 +10,17 @@ riggy install ~/Downloads/robot.glb
 
 copies the model to `~/.local/share/riggy/models/robot.glb`; the tray then lists it under "Avatar" as "robot". Some converted models (e.g. Fab's GLB conversions) keep their skeleton only in the skins' inverse bind matrices, while their bone nodes carry no transform; `riggy install` rebuilds the rest pose of such bones, so they can move.
 
+A model whose file comes without its textures gets them as image files right after it:
+
+```bash
+riggy install ~/Downloads/robot.glb ~/Downloads/robot/ColorMap.jpg ~/Downloads/robot/ORM.png
+```
+
+puts the images into `~/.local/share/riggy/models/robot/`, where the mapping file's `[material]` names them.
+
 ## Mapping file
 
-Riggy reads `~/.local/share/riggy/avatars/NAME.toml` for the model `NAME`. For the default avatar it copies its own mapping from `assets/avatars/` the first time; a new avatar needs one written by hand, with [assets/avatars/cyborg_girl.toml](../assets/avatars/cyborg_girl.toml) as the example. The tray opens the current avatar's mapping file under "Advanced settings".
+Riggy reads `~/.local/share/riggy/avatars/NAME.toml` for the model `NAME`. For the avatars it knows it copies its own mapping from `assets/avatars/` the first time; a new avatar needs one written by hand, with [cyborg_girl.toml](../assets/avatars/cyborg_girl.toml) as the example of a humanoid and [Ballytic813c_Reforged_ByLio3DW.toml](../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml) of a machine. The tray opens the current avatar's mapping file under "Advanced settings".
 
 Positions and directions are in avatar space: +Y up, +Z the way the figure faces, +X its left.
 
@@ -23,10 +31,12 @@ Positions and directions are in avatar space: +Y up, +Z the way the figure faces
 | `[expressions.NAME]` | node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at full weight; `rotate` is an axis-angle vector in degrees, `translate` an offset in model units |
 | `[rest]` | bone changes applied permanently, e.g. lips that do not quite close |
 | `[[props]]` | simple shapes on a bone (`shape = "sphere"` or `"cube"`, `center`, `size`, `color`, `unlit`), e.g. a mouth interior or teeth the model lacks |
-| `[parts]` | free part name → node name, for non-humanoid avatars |
+| `[parts]` | free part name → node name, for machines |
+| `[machine]` | makes the avatar a machine and sets how it moves: `body` (the part that floats and wobbles), `float` (height in model units), `float_rate` (Hz), `wobble` (degrees), `spin` and `speaking_spin` (part → degrees per second, positive anticlockwise seen from above), `open_time` (seconds), `rest_glow` and `glow_gain` (weight of `glow` while silent, and per unit of the voice's level) |
+| `[material]` | texture files in the model's folder for a model that has none: `base_color`, `orm` (occlusion, roughness, metalness in red, green, blue), `normal` (OpenGL convention), `emission`, and `emission_color` (linear RGB of the emission at full `glow`) |
 
 With `hips` and the leg bones (`leftUpperLeg`, `leftLowerLeg`, `leftFoot`, the same on the right, `leftToes` and `rightToes` optional) mapped, the feet stay on the floor: the legs bend to follow the hips, the figure turns about the middle of its feet, and the feet step after a turn. The knees bend about the avatar's X axis.
 
-Expressions Riggy drives: `blink`, `blinkLeft`, `blinkRight`, the mouth shapes `aa`, `ih`, `ou`, `ee`, `oh`, and `cheeks` (raised with `ee` and `ih`).
+Expressions Riggy drives on a humanoid: `blink`, `blinkLeft`, `blinkRight`, the mouth shapes `aa`, `ih`, `ou`, `ee`, `oh`, `cheeks` (raised with `ee` and `ih`) and `happy` (the idle smile). On a machine: `open`, the parts moved apart while it speaks, and `glow`, which sets the brightness of the `[material] emission` and follows the voice.
 
 Node names match exactly, or after dropping the `_<digits>` suffix Sketchfab exports append. `RIGGY_DUMP_NODES=1 riggy` prints the model's node tree with joint positions, which helps to pick the bones. Changes to `[rest]`, `[expressions.*]` and `[[props]]` apply while Riggy runs, so mouth shapes can be tuned in the editor while the window shows the result; see [development.md](development.md) for the debug keys.

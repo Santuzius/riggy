@@ -6,7 +6,7 @@ use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::mesh::VertexAttributeValues;
 use bevy::camera::ScalingMode;
 use bevy::prelude::*;
-use bevy::window::CursorMoved;
+use bevy::window::{CursorMoved, PrimaryWindow};
 
 use riggy::control::Command;
 use riggy::settings::Settings;
@@ -119,6 +119,7 @@ fn frame_avatar(
     mesh_assets: Res<Assets<Mesh>>,
     bindposes: Res<Assets<SkinnedMeshInverseBindposes>>,
     transforms: Query<&GlobalTransform>,
+    windows: Query<&Window, With<PrimaryWindow>>,
 ) {
     let Ok(mut framing) = cameras.single_mut() else { return };
     if framing.full.is_some() {
@@ -145,20 +146,6 @@ fn frame_avatar(
     if count == 0 {
         return;
     }
-    // The sphere conversion overestimates; take the vertical extent from the bones where known.
-    let (bottom, top) = match humanoid {
-        Some(h) if h.height > 0.0 => {
-            let scale = root_transform.scale().y;
-            let floor = root_transform.translation().y + h.floor * scale;
-            (floor, floor + h.height * scale * 1.06)
-        }
-        _ => (min.y, max.y),
-    };
-    let center = Vec3::new((min.x + max.x) / 2.0, (bottom + top) / 2.0, (min.z + max.z) / 2.0);
-    // The feet stand on the window's bottom edge, so on the desktop the figure stands on the panel; the margin stays above the head.
-    let height = (top - bottom) * (1.0 + MARGIN);
-    let target = Vec3::new(center.x, bottom + height / 2.0, center.z);
-    // The soles: the vertices near the lowest one; `ground` keeps the lowest of them as seen on the window's edge.
     let vertices: Vec<Vertex> = children
         .iter_descendants(root)
         .filter_map(|e| {
@@ -167,9 +154,30 @@ fn frame_avatar(
         })
         .flatten()
         .collect();
-    let heights: Vec<f32> = vertices.iter().map(|v| position(v, &transforms).y).collect();
-    let lowest = heights.iter().copied().fold(f32::MAX, f32::min);
-    framing.soles = vertices.into_iter().zip(heights).filter(|&(_, y)| y < lowest + SOLE_HEIGHT).map(|(v, _)| v).collect();
+    let positions: Vec<Vec3> = vertices.iter().map(|v| position(v, &transforms)).collect();
+    let lowest = positions.iter().map(|p| p.y).fold(f32::MAX, f32::min);
+    // The sphere conversion overestimates; take the vertical extent from the bones where known, else from the vertices.
+    let (bottom, top) = match humanoid {
+        Some(h) if h.height > 0.0 => {
+            let scale = root_transform.scale().y;
+            let floor = root_transform.translation().y + h.floor * scale;
+            (floor, floor + h.height * scale * 1.06)
+        }
+        _ if !positions.is_empty() => (lowest, positions.iter().map(|p| p.y).fold(f32::MIN, f32::max)),
+        _ => (min.y, max.y),
+    };
+    let center = Vec3::new((min.x + max.x) / 2.0, (bottom + top) / 2.0, (min.z + max.z) / 2.0);
+    // The widest the figure gets as it turns about its vertical axis; a wide figure such as a machine fills the window's width instead of its height.
+    let axis = root_transform.translation();
+    let radius = positions.iter().map(|p| Vec2::new(p.x - axis.x, p.z - axis.z).length()).fold(0.0, f32::max);
+    let aspect = windows.single().map_or(1.0, |w| w.width() / w.height().max(1.0));
+    // The feet stand on the window's bottom edge, so on the desktop the figure stands on the panel; the margin stays above the head.
+    let height = (top - bottom).max(2.0 * radius / aspect) * (1.0 + MARGIN);
+    let target = Vec3::new(axis.x, bottom + height / 2.0, axis.z);
+    // The soles of a humanoid: the vertices near the lowest one; `ground` keeps the lowest of them as seen on the window's edge. A machine floats, so it has none.
+    if humanoid.is_some() {
+        framing.soles = vertices.into_iter().zip(&positions).filter(|&(_, p)| p.y < lowest + SOLE_HEIGHT).map(|(v, _)| v).collect();
+    }
     let full = Shot { target, height };
     info!("avatar bounds: {:.2} m high, centre {:.2?}, {} sole vertices", top - bottom, center, framing.soles.len());
     framing.full = Some(full);
@@ -182,7 +190,8 @@ fn frame_avatar(
     let eyes: Vec<Vec3> = framing.eyes.iter().filter_map(|&e| Some(transforms.get(e).ok()?.translation())).collect();
     framing.face = Some(Shot {
         target: if eyes.is_empty() { center } else { eyes.iter().sum::<Vec3>() / eyes.len() as f32 },
-        height: FACE_HEIGHT.min(full.height),
+        // Without eyes (a machine) the close-up shows the middle half of the figure.
+        height: if eyes.is_empty() { full.height / 2.0 } else { FACE_HEIGHT.min(full.height) },
     });
 }
 
@@ -262,6 +271,7 @@ fn turn_avatar(
     mut commands: MessageReader<Received>,
     mut turning: Local<Turning>,
     mut stances: Query<&mut Stance>,
+    mut unstanced: Query<(&mut Transform, Ref<AvatarRoot>), Without<Stance>>,
 ) {
     let mut changed = false;
     for Received(command) in commands.read() {
@@ -291,6 +301,12 @@ fn turn_avatar(
     for mut stance in &mut stances {
         if changed || stance.is_added() {
             stance.wanted = turning.degrees.to_radians();
+        }
+    }
+    // A figure without feet, such as a machine, turns at once.
+    for (mut transform, root) in &mut unstanced {
+        if changed || root.is_added() {
+            transform.rotation = Quat::from_rotation_y(turning.degrees.to_radians());
         }
     }
 }

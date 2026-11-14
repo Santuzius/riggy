@@ -80,7 +80,12 @@ Download it in the GLB format and then install using:
 riggy install ~/Downloads/cyborg_girl/cyborg_girl.glb
 ```
 
-Other avatars in GLB format are installed the same way and appear in the tray menu under their file name. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
+Other avatars in GLB format are installed the same way and appear in the tray menu under their file name. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md). Riggy brings one for a second avatar, the floating machine [Ballytic-813c Reforged by Lio3DW](https://www.fab.com/sellers/Lio-3DW), whose file comes without textures. Unpack its zip and install the model with them:
+
+```bash
+cd ~/Downloads/"[Ballytic813c]-ReforgedMachine-GameReadyPBR- ByLio3DW"
+riggy install ModelFormats/Ballytic813c_Reforged_ByLio3DW.glb Textures/CleanTextures/1K_Textures/{"ColorMap[1K].jpg","ORM_Map[1K].png","NormalMap_GL[1K].png"} "Textures/EmissionMap[1K].png"
+```
 
 ### 3. Start
 

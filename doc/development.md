@@ -13,7 +13,7 @@ riggy re-reads its config and the avatar's mapping file about once a second whil
 | File | Applied live | Needs a restart |
 |---|---|---|
 | `riggy.toml` (defaults) and `~/.config/riggy/riggy.toml` | `[idle]`, `[blink]`, `[mouth]`, `[lipsync]`, `[debug]` | `[avatar]`, `[window]`, `[speech]` |
-| mapping (`~/.local/share/riggy/avatars/*.toml`) | `[rest]`, `[expressions.*]`, `[[props]]` | `scale`, `[humanoid]`, `[parts]` |
+| mapping (`~/.local/share/riggy/avatars/*.toml`) | `[rest]`, `[expressions.*]`, `[[props]]` | `scale`, `[humanoid]`, `[parts]`, `[machine]`, `[material]` |
 
 The dev shell sets `RIGGY_DATA_DIR` to the checkout, so riggy takes its defaults from the repository's `riggy.toml` and `assets/avatars/`; edits to `riggy.toml` apply while riggy runs. The mapping file riggy reads is the copy in `~/.local/share/riggy/avatars/`: tune that one, then copy it to `assets/avatars/` to make it the default.
 

@@ -2,6 +2,7 @@
 //!
 //! - `*.gguf`: a speech model, into the speech server's model folder (`riggy::speech_server::models_dir`).
 //! - `*.glb`: an avatar, into `~/.local/share/riggy/models/`, named after the file. A model whose bone nodes were flattened gets its rest pose back on the way (see [`rest_pose`]).
+//! - `*.png`, `*.jpg`: a texture of the avatar installed before it, into that model's own folder (`riggy::files::model_textures`), for a model whose file comes without its textures.
 
 mod rest_pose;
 
@@ -13,10 +14,11 @@ use crate::{files, speech_server};
 pub enum Installed {
     SpeechModel { path: PathBuf },
     Avatar { name: String, path: PathBuf, rebuilt_joints: Option<usize> },
+    Texture { avatar: String, path: PathBuf },
 }
 
-/// Installs `file` by its extension.
-pub fn install(file: &Path) -> Result<Installed, String> {
+/// Installs `file` by its extension; a texture goes to `avatar`, the avatar installed before it.
+pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
     let extension = file.extension().and_then(|e| e.to_str()).map(str::to_lowercase);
     let file_name = file.file_name().ok_or("no file name")?;
     match extension.as_deref() {
@@ -34,7 +36,13 @@ pub fn install(file: &Path) -> Result<Installed, String> {
             write(&path, fix.map_or(bytes, |fix| fix.glb))?;
             Ok(Installed::Avatar { name, path, rebuilt_joints })
         }
-        _ => Err(format!("{}: riggy installs speech models (.gguf) and avatars (.glb)", file.display())),
+        Some("png" | "jpg" | "jpeg") => {
+            let avatar = avatar.ok_or_else(|| format!("{}: a texture belongs to an avatar; name the avatar's .glb before it", file.display()))?;
+            let path = files::model_textures(avatar).join(file_name);
+            copy(file, &path)?;
+            Ok(Installed::Texture { avatar: avatar.to_owned(), path })
+        }
+        _ => Err(format!("{}: riggy installs speech models (.gguf), avatars (.glb) and their textures (.png, .jpg)", file.display())),
     }
 }
 

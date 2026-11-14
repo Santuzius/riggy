@@ -1,0 +1,36 @@
+# Ballytic-813c Reforged by Lio3DW: a machine of three rings on one vertical axis, which floats and spins, and opens and glows while it speaks.
+# Its file has no textures; install them after it: riggy install Ballytic813c_Reforged_ByLio3DW.glb "ColorMap[1K].jpg" "ORM_Map[1K].png" "NormalMap_GL[1K].png" "EmissionMap[1K].png"
+# Avatar space: +Y up; model units are metres.
+
+scale = 1.0
+
+[parts]
+body = "MassCenterControl"
+top = "Top"
+middle = "Middle"
+bottom = "Bottom"
+
+# Floating in metres and Hz, wobble in degrees, spins in degrees per second (positive: anticlockwise from above).
+[machine]
+body = "body"
+float = 0.08
+float_rate = 0.2
+wobble = 2.0
+spin = { top = 25.0, middle = -10.0, bottom = 18.0 }
+speaking_spin = { middle = -3.0 }
+open_time = 0.3
+rest_glow = 0.3
+glow_gain = 6.0
+
+# Texture files in the model's folder; the emission texture is orange already, so its colour only sets the strength at full glow.
+[material]
+base_color = "ColorMap[1K].jpg"
+orm = "ORM_Map[1K].png"
+normal = "NormalMap_GL[1K].png"
+emission = "EmissionMap[1K].png"
+emission_color = [10.0, 10.0, 10.0]
+
+# While speaking the middle ring rises a little and the cap more, so the body opens above the bottom part, which stays on the floor (translate: metres).
+[expressions.open]
+"Top" = { translate = [0, 0.3, 0] }
+"Middle" = { translate = [0, 0.12, 0] }

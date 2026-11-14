@@ -10,7 +10,7 @@ use riggy::{settings, speech_server};
 const USAGE: &str = "\
 Usage:
   riggy                                   show the avatar (the tray icon riggy-tray does this for you)
-  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb)
+  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb), each avatar followed by its textures (.png, .jpg) if its file has none
   riggy say [--language LANGUAGE] TEXT    speak TEXT (LANGUAGE: English, German, auto; default English)";
 
 /// What the command line asks for.
@@ -61,8 +61,9 @@ pub fn usage_error(message: &str) -> ExitCode {
 pub fn install(files: &[PathBuf]) -> ExitCode {
     let mut failed = false;
     let mut speech_models = false;
+    let mut avatar = None;
     for file in files {
-        match install::install(file) {
+        match install::install(file, avatar.as_deref()) {
             Ok(Installed::SpeechModel { path }) => {
                 println!("Installed the speech model {}", path.display());
                 speech_models = true;
@@ -72,7 +73,9 @@ pub fn install(files: &[PathBuf]) -> ExitCode {
                 if let Some(joints) = rebuilt_joints {
                     println!("  Its {joints} bones got their rest pose back, so they can move.");
                 }
+                avatar = Some(name);
             }
+            Ok(Installed::Texture { avatar, path }) => println!("Installed a texture of {avatar:?} as {}", path.display()),
             Err(err) => {
                 eprintln!("riggy: {err}");
                 failed = true;

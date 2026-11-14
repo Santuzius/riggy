@@ -2,6 +2,8 @@
 //!
 //! Idle, gaze and pose code address bones only through [`HumanoidBone`]; lip sync and blinking set only [`Expressions`] weights. A backend (`glb` now, `vrm` later) resolves these names on its model.
 //!
+//! An avatar is a humanoid ([`Humanoid`]) or a machine ([`Machine`]): a machine has named [`Parts`] instead of humanoid bones, which `animation::machine` floats and spins, and it speaks through the expressions `open` (the body parts apart) and `glow` (its lights).
+//!
 //! Per frame the systems run in [`AvatarSet`] order: the backend resets every driven bone to its rest pose, pose code (idle) adds rotations, expression code sets weights, and the backend applies the weights.
 
 pub mod glb;
@@ -189,6 +191,51 @@ impl Humanoid {
     /// Avatar-space rest position of a bone.
     pub fn position(&self, bone: HumanoidBone) -> Option<Vec3> {
         self.bones.get(&bone).map(|b| b.position)
+    }
+}
+
+/// Named non-humanoid parts of the avatar (mapping file: `[parts]`), on the avatar root entity.
+#[derive(Component, Debug, Default)]
+pub struct Parts {
+    pub bones: HashMap<String, PoseBone>,
+}
+
+/// How a machine avatar moves (mapping file: `[machine]`), on the avatar root entity. Distances are in model units, angles in degrees, rates in Hz.
+#[derive(Component, serde::Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct Machine {
+    /// The part that floats and wobbles, carrying the others.
+    pub body: String,
+    /// Height the body rises and sinks by while floating.
+    pub float: f32,
+    pub float_rate: f32,
+    /// Tilt of the body while floating.
+    pub wobble: f32,
+    /// Spin of parts about the vertical axis in degrees per second, positive anticlockwise seen from above.
+    pub spin: HashMap<String, f32>,
+    /// Spin while speaking, for the parts listed; the others keep `spin`.
+    pub speaking_spin: HashMap<String, f32>,
+    /// Seconds the parts take to open when speech starts, and to close after it.
+    pub open_time: f32,
+    /// Weight of `glow` while silent; it breathes slowly around this.
+    pub rest_glow: f32,
+    /// Weight of `glow` per unit of the voice's RMS level (full scale = 1).
+    pub glow_gain: f32,
+}
+
+impl Default for Machine {
+    fn default() -> Self {
+        Self {
+            body: "body".into(),
+            float: 0.0,
+            float_rate: 0.2,
+            wobble: 0.0,
+            spin: HashMap::new(),
+            speaking_spin: HashMap::new(),
+            open_time: 0.3,
+            rest_glow: 0.3,
+            glow_gain: 6.0,
+        }
     }
 }
 

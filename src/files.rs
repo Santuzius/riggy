@@ -10,7 +10,10 @@ use std::path::{Path, PathBuf};
 /// The default settings, also built in for a riggy that runs without its data folder.
 const DEFAULT_CONFIG: &str = include_str!("../riggy.toml");
 /// Default mapping files built in, by model name.
-const DEFAULT_MAPPINGS: [(&str, &str); 1] = [("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml"))];
+const DEFAULT_MAPPINGS: [(&str, &str); 2] = [
+    ("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml")),
+    ("Ballytic813c_Reforged_ByLio3DW", include_str!("../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml")),
+];
 
 /// What a fresh user config holds: nothing but a pointer to the defaults.
 const USER_CONFIG_TEMPLATE: &str = "# Your riggy settings. Everything not set here comes from the defaults: riggy.toml in riggy's data folder (share/riggy in the package). Copy a setting from there to change it, e.g.\n#\n# [lipsync]\n# mode = \"text\"\n";
@@ -71,6 +74,11 @@ pub fn models_dir() -> PathBuf {
 /// The model file of `name`.
 pub fn model(name: &str) -> PathBuf {
     models_dir().join(format!("{name}.glb"))
+}
+
+/// The folder of the textures of model `name`, for a model whose file comes without them (mapping file: `[material]`).
+pub fn model_textures(name: &str) -> PathBuf {
+    models_dir().join(name)
 }
 
 /// The names of the installed models, sorted.
