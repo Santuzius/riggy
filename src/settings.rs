@@ -46,7 +46,7 @@ impl Default for Settings {
             size: 1.0,
             zoom: 0.0,
             turn: 0.0,
-            autostart: true,
+            autostart: false,
             start_with_mcp: true,
         }
     }
@@ -86,6 +86,6 @@ mod tests {
         let settings: Settings = toml::from_str("voice = \"ryan\"\ntempo = 1.5").unwrap();
         assert_eq!(settings.voice, "ryan");
         assert_eq!(settings.size, 1.0);
-        assert!(settings.autostart);
+        assert!(!settings.autostart);
     }
 }

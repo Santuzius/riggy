@@ -78,7 +78,7 @@ Other avatars in GLB format are installed the same way and appear in the tray me
 
 ### 3. Start
 
-Start Riggy using the entry from your start menu. From then on it starts at login by itself.
+Start Riggy using the entry from your start menu. To start it at login, tick "Start automatically › At login" in its tray menu.
 
 ### Done! 🎉
 
