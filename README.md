@@ -38,7 +38,7 @@ riggy listens on the Unix socket `$XDG_RUNTIME_DIR/riggy.sock`, plays what it re
 1. one line of JSON: `{"text": "Hello", "language": "English", "rate": 24000}` (`rate` in Hz; all fields optional),
 2. raw PCM, signed 16-bit little-endian mono, until the sender closes the connection.
 
-Later connections wait until the earlier ones have been read. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
+Later connections wait until the earlier ones have been read. The `speak` tool of [mcp-tts](https://github.com/Santuzius/portable-nixos/tree/main/services/mcp-tts) uses this socket whenever riggy runs, so spoken agent replies come out of riggy's mouth. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
 
 ```bash
 nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
