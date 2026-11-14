@@ -42,7 +42,7 @@ const CHEEKS_PER_VISEME: [f32; 5] = [0.0, 0.4, 0.0, 1.0, 0.0];
 
 /// Moves the current weights towards the target with a first-order lag: `time_constant` while a weight rises, the slower `release_time` while it falls, as a jaw opens quickly and closes more slowly; `[lipsync] cue_time` both ways for Rhubarb cues.
 ///
-/// The custom expression `cheeks` follows the spread shapes with the much slower `cheek_time`: cheeks are pushed up by the held lip shape, not by each syllable.
+/// The custom expression `cheeks` follows the spread shapes with the much slower `cheek_time`: cheeks are pushed up by the held lip shape, not by each syllable. Rhubarb's shapes do not pump with loudness, so with cues the cheeks follow faster (`[lipsync] cue_cheek_time`).
 fn mouth(time: Res<Time>, config: Res<Config>, target: Res<MouthTarget>, mut current: Local<[f32; 5]>, mut cheeks: Local<f32>, mut avatars: Query<&mut Expressions, With<Humanoid>>) {
     let gain = |tau: f32| 1.0 - (-time.delta_secs() / tau.max(1e-3)).exp();
     let (rise, fall) = if target.cued {
@@ -55,7 +55,8 @@ fn mouth(time: Res<Time>, config: Res<Config>, target: Res<MouthTarget>, mut cur
         *w += (t - *w) * if t > *w { rise } else { fall };
     }
     let cheek_target: f32 = current.iter().zip(CHEEKS_PER_VISEME).map(|(w, c)| w * c).sum();
-    *cheeks += (cheek_target.min(1.0) - *cheeks) * gain(config.mouth.cheek_time);
+    let cheek_time = if target.cued { config.lipsync.cue_cheek_time } else { config.mouth.cheek_time };
+    *cheeks += (cheek_target.min(1.0) - *cheeks) * gain(cheek_time);
     for mut expressions in &mut avatars {
         for (viseme, &w) in ExpressionPreset::VISEMES.iter().zip(current.iter()) {
             expressions.set(*viseme, w);
