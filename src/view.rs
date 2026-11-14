@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
 use crate::config::Config;
 
-/// Relative margin around the figure in the full view.
+/// Relative margin above the figure in the full view.
 const MARGIN: f32 = 0.06;
 /// Height of the face close-up in metres.
 const FACE_HEIGHT: f32 = 0.32;
@@ -114,9 +114,11 @@ fn frame_avatar(
         _ => (min.y, max.y),
     };
     let center = Vec3::new((min.x + max.x) / 2.0, (bottom + top) / 2.0, (min.z + max.z) / 2.0);
+    // The feet stand on the window's bottom edge, so on the desktop the figure stands on the panel; the margin stays above the head.
+    let height = (top - bottom) * (1.0 + MARGIN);
     let full = Shot {
-        target: center,
-        height: (top - bottom) * (1.0 + 2.0 * MARGIN),
+        target: Vec3::new(center.x, bottom + height / 2.0, center.z),
+        height,
     };
     info!("avatar bounds: {:.2} m high, centre {:.2?}", top - bottom, center);
     framing.full = Some(full);

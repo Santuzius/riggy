@@ -50,6 +50,29 @@ Three lip-sync modes, chosen with `[lipsync] mode` in `riggy.toml` or cycled wit
 - `rhubarb`: [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) recognises the sounds and returns mouth shapes with timings, including closed lips for m, b and p. riggy cuts the arriving speech at pauses and analyses each piece (about 1 s per piece), so speech starts about 2 s later. The Nix shell provides `rhubarb`; the flake packages its Linux release.
 - `text`: the mouth shapes come from the text in the socket header. [eSpeak NG](https://github.com/espeak-ng/espeak-ng) speaks the text itself, which gives its phonemes in any of its languages, including the German umlauts. riggy matches that synthetic speech to the real one while it arrives (dynamic time warping of MFCCs, as the forced aligner [aeneas](https://github.com/readbeyond/aeneas) does), which times each phoneme, and turns the timed phonemes into mouth shapes with Rhubarb's animation rules. Speech starts about 0.3 s later.
 
+## On the desktop
+
+With these settings in `riggy.toml`, riggy stands on the desktop as a figure without a window around it:
+
+```toml
+[window]
+transparent = true      # no border, see-through background
+always_on_top = true    # X11 only; on Wayland the KWin script below does it
+click_through = true    # clicks go to the windows underneath
+```
+
+F2 switches click-through on and off while riggy has the keyboard focus. While click-through is off, dragging with the left mouse button moves the figure.
+
+On KDE Plasma the KWin script in `kwin/riggy/` places riggy on the top edge of the bottom panel at its right end, keeps it above other windows and out of the taskbar, the pager and Alt+Tab, and shows it on all virtual desktops. Install and enable it once:
+
+```bash
+kpackagetool6 --type KWin/Script --install kwin/riggy      # --upgrade after changes
+kwriteconfig6 --file kwinrc --group Plugins --key riggyEnabled true
+qdbus org.kde.KWin /KWin reconfigure
+```
+
+The script matches the window by its Wayland app ID (X11 class) `riggy`.
+
 ## Development
 
 [doc/development.md](doc/development.md) covers live reloading, debug keys, node dumps, screenshots and lip-sync tuning.

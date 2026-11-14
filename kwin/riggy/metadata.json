@@ -1,0 +1,16 @@
+{
+    "KPackageStructure": "KWin/Script",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Alexander Menzel"
+            }
+        ],
+        "Description": "Places the riggy desktop mascot on the top edge of the panel and keeps it above other windows",
+        "Id": "riggy",
+        "License": "MIT",
+        "Name": "riggy",
+        "Version": "0.1"
+    },
+    "X-Plasma-API": "javascript"
+}
