@@ -73,7 +73,7 @@ struct LipState {
 
 /// Sets the mouth from the measures heard up to now; leaves it alone while nothing plays, so the debug keys still work.
 ///
-/// The opening follows the loudness of each measure, while the shape follows the sound only with the lag `[mouth] shape_time`: a single 10 ms window decides the shape poorly, and real lips glide between vowel shapes. Speakers rarely close the mouth between words: in a quiet stretch shorter than `pause_hold` the shape stays open at `pause_opening`.
+/// The opening follows the loudness of each measure, while the shape follows the sound only with the lag `[mouth] shape_time`, scaled by the opening: a single 10 ms window decides the shape poorly, real lips glide between vowel shapes, and loud stressed vowels shape the lips more than weak syllables such as the "e" in "the". Speakers rarely close the mouth between words: in a quiet stretch shorter than `pause_hold` the shape stays open at `pause_opening`.
 fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut target: ResMut<MouthTarget>, mut state: Local<LipState>) {
     let now = Instant::now();
     let heard = now.checked_sub(Duration::from_secs_f32(config.mouth.audio_latency.max(0.0))).unwrap_or(now);
@@ -97,7 +97,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
                 let fresh = lipsync::shape(&frame.measure);
                 let first = state.shape.iter().sum::<f32>() == 0.0;
                 for (w, f) in state.shape.iter_mut().zip(fresh) {
-                    *w = if first { f } else { *w + (f - *w) * k };
+                    *w = if first { f } else { *w + (f - *w) * k * open };
                 }
                 open
             } else {

@@ -125,18 +125,24 @@ pub fn visemes(m: &Measure, silence: f32, loud: f32) -> [f32; 5] {
 
 /// How far the mouth opens (0–1): the level between `silence` and `loud`, on a dB scale, reduced for nasal hums.
 ///
-/// "m" and "n" are voiced through the nose with the mouth (nearly) closed; their sound has almost all power at the voice's fundamental (`f1` near the 200 Hz band edge) and very little above 1.8 kHz.
+/// "m" and "n" are voiced through the nose with the mouth (nearly) closed; their sound has almost all power at the voice's fundamental (`f1` near the 200 Hz band edge) and very little above 1.8 kHz. Hiss ("s", "th", "f"), with `front` far above any vowel's, comes from a narrow gap at the teeth and also keeps the jaw nearly closed.
 pub fn opening(m: &Measure, silence: f32, loud: f32) -> f32 {
     let db = |x: f32| 20.0 * x.max(1e-6).log10();
     let open = ((db(m.level) - db(silence)) / (db(loud) - db(silence))).clamp(0.0, 1.0);
     let nasal = (1.0 - smoothstep(235.0, 270.0, m.f1)) * (1.0 - smoothstep(-18.0, -12.0, m.front));
-    open * (1.0 - 0.85 * nasal)
+    open * (1.0 - 0.85 * nasal) * (1.0 - 0.6 * hiss(m))
+}
+
+/// How much the sound is hiss rather than voice (0–1): vowels reach at most about +5 dB in `front`, "s" and "th" +10 dB and more.
+fn hiss(m: &Measure) -> f32 {
+    smoothstep(6.0, 12.0, m.front)
 }
 
 /// Which mouth shape the sound calls for, as viseme weights summing to 1: `front` splits front vowels (ee, ih) from back ones (ou, oh, aa), and `f1` orders each group from closed to open.
 pub fn shape(m: &Measure) -> [f32; 5] {
     // Measured medians of f1: ee 330, ih 500 Hz; ou 375, oh 550, aa 640 Hz.
-    let front_height = smoothstep(350.0, 480.0, m.f1);
+    // Hiss has no formants; its f1 is noise, so it takes the narrow "ee" shape.
+    let front_height = smoothstep(350.0, 480.0, m.f1) * (1.0 - hiss(m));
     let height = smoothstep(350.0, 650.0, m.f1);
     // Measured medians of front: ee +2, ih +1.5 dB; aa −7, ou −22, oh −33 dB. Unstressed "ee" at a word's end ("Riggy") drops to about −5 dB, so for closed vowels, where the choice is ee or ou, the split lies lower than for open ones, where it is ih or aa.
     let split = -12.0 + 9.0 * height;
@@ -173,11 +179,11 @@ mod tests {
     #[test]
     fn vowels_pick_their_viseme() {
         let largest = |w: [f32; 5]| (0..5).max_by(|&a, &b| w[a].total_cmp(&w[b])).unwrap();
-        // Two-formant stand-ins: (F1, F2) with F2 weaker.
+        // Two-formant stand-ins: (F1, F2) with F2 about 16 dB weaker, roughly as in the TTS voice.
         let cases = [(700.0, 1200.0, 0), (450.0, 2400.0, 1), (300.0, 800.0, 2), (300.0, 2700.0, 3), (520.0, 900.0, 4)];
         for rate in [24_000, 48_000] {
             for (f1, f2, expected) in cases {
-                let m = measure(rate, &[(f1, 0.1), (f2, 0.03)]);
+                let m = measure(rate, &[(f1, 0.1), (f2, 0.015)]);
                 let w = visemes(&m, 0.01, 0.12);
                 assert_eq!(largest(w), expected, "rate {rate}, F1 {f1}, F2 {f2}: {m:?} → {w:?}");
             }
@@ -188,8 +194,16 @@ mod tests {
     fn hums_keep_the_mouth_nearly_closed() {
         // "m": power at the fundamental only.
         let hum = measure(48_000, &[(220.0, 0.1)]);
-        let vowel = measure(48_000, &[(300.0, 0.1), (2700.0, 0.03)]);
+        let vowel = measure(48_000, &[(300.0, 0.1), (2700.0, 0.015)]);
         assert!(opening(&hum, 0.01, 0.12) < 0.25 * opening(&vowel, 0.01, 0.12), "{hum:?} vs {vowel:?}");
+    }
+
+    #[test]
+    fn hiss_keeps_the_jaw_low() {
+        let hiss = Measure { level: 0.05, f1: 600.0, front: 15.0 };
+        let vowel = Measure { level: 0.05, f1: 600.0, front: -10.0 };
+        assert!(opening(&hiss, 0.01, 0.12) < 0.5 * opening(&vowel, 0.01, 0.12));
+        assert!(shape(&hiss)[3] > 0.9, "{:?}", shape(&hiss));
     }
 
     #[test]
