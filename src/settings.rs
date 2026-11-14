@@ -32,6 +32,8 @@ pub struct Settings {
     pub autostart: bool,
     /// Start the tray, and with it the avatar, when an AI agent starts `riggy-mcp`.
     pub start_with_mcp: bool,
+    /// Whether `riggy-mcp` tells the agent when and how to speak; off for users who write their own instructions.
+    pub mcp_instructions: bool,
 }
 
 impl Default for Settings {
@@ -48,6 +50,7 @@ impl Default for Settings {
             turn: 0.0,
             autostart: false,
             start_with_mcp: true,
+            mcp_instructions: true,
         }
     }
 }
@@ -87,5 +90,6 @@ mod tests {
         assert_eq!(settings.voice, "ryan");
         assert_eq!(settings.size, 1.0);
         assert!(!settings.autostart);
+        assert!(settings.mcp_instructions);
     }
 }

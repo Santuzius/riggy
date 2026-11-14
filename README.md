@@ -104,7 +104,13 @@ E.g. for Claude Code:
 claude mcp add --scope user riggy-mcp riggy-mcp
 ```
 
-The agent gets the tool `speak(text, language)`, and its replies come out of Riggy's mouth.
+The agent gets the tool `speak(text, language)`, and its replies come out of Riggy's mouth. Claude Code also gets instructions on when and how to speak from `riggy-mcp` itself. Agents that ignore them, such as Zed's own agent, need one line in their `CLAUDE.md` or `AGENTS.md`:
+
+```markdown
+Use riggy-mcp as described in `riggy-mcp --help`.
+```
+
+To write your own instructions instead, switch off "Default MCP instructions" in the tray.
 
 #### Customize 🎛️
 
@@ -113,6 +119,7 @@ All you need is reachable through the tray:
 - Switch TTS or Avatar on/off
 - Select avatar
 - Select TTS voice or tempo
+- Switch riggy-mcp's default instructions for the agent on/off
 - Select lip sync method
 - Desktop: enable dragging/click-through, size, view (whole figure to face) and turn
 - Enable autostart at login or when an AI agent starts `riggy-mcp`

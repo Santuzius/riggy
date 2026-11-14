@@ -61,6 +61,11 @@ impl RiggyTray {
             checkmark("Speech", !self.speech_off, |tray| tray.set_speech(tray.speech_off)),
             voice_menu,
             radio_menu("Tempo", TEMPOS.iter().map(|&t| (format!("{t}×"), t)).collect(), &self.settings.tempo, |tray, tempo| tray.choose(|s| s.tempo = tempo)),
+            // riggy-mcp reads it when an agent starts it.
+            checkmark("Default MCP instructions", self.settings.mcp_instructions, |tray| {
+                let on = !tray.settings.mcp_instructions;
+                tray.choose(|s| s.mcp_instructions = on);
+            }),
         ]
     }
 
