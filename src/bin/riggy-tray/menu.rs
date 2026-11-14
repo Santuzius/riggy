@@ -104,6 +104,8 @@ impl RiggyTray {
                 action("Settings file", "document-edit", |_| open(&files::user_config())),
                 action("Avatar's mapping file", "document-edit", |tray| open(&files::mapping(&tray.model()))),
                 action("Avatars folder", "folder", |_| open(&files::models_dir())),
+                MenuItem::Separator,
+                action("Install KWin script of this version", "kwin", |_| crate::kwin::install_script()),
             ],
         )
     }

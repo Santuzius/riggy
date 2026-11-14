@@ -16,6 +16,7 @@ A left click on the tray icon shows or closes Riggy. The menu:
 | Start automatically | at login (an entry in `~/.config/autostart/`), and when an AI agent starts `riggy-mcp` |
 | Advanced settings › Default MCP instructions | on: `riggy-mcp` tells the agent when and how to speak (the text `riggy-mcp --help` prints); off: it leaves that to your own `CLAUDE.md` or `AGENTS.md`. Applies when an agent next starts `riggy-mcp`. |
 | Advanced settings › files | open the settings file, the avatar's mapping file or the avatars folder in your default application |
+| Advanced settings › Install KWin script of this version | writes the KWin script of the running Riggy to `~/.local/share/kwin/scripts/riggy/`, replacing an older copy there that would override the package's, and makes KWin load it |
 | Reset to defaults | puts the settings and mapping files back, keeping the replaced files as `*.old` |
 | Quit | closes the tray and Riggy |
 
