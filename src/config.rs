@@ -1,6 +1,6 @@
 //! Settings from `riggy.toml`, reloaded when the file changes.
 //!
-//! The file is looked up in `$RIGGY_CONFIG`, then `./riggy.toml`. `$RIGGY_MODEL` overrides `[avatar] path`.
+//! The file is looked up in `$RIGGY_CONFIG`, then `./riggy.toml`. `$RIGGY_MODEL` overrides `[avatar] path`; `RIGGY_DESKTOP=1` makes the window transparent and keeps it above the others.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -21,17 +21,7 @@ pub struct Config {
     pub debug: DebugConfig,
 }
 
-#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum LipsyncMode {
-    /// From loudness and spectrum while the sound plays; speech starts at once.
-    #[default]
-    Sound,
-    /// From Rhubarb Lip Sync's mouth shapes; speech starts about 1–2 s later.
-    Rhubarb,
-    /// From the spoken text, timed to the audio, with Rhubarb's mouth shapes; speech starts about 0.3 s later.
-    Text,
-}
+pub use riggy::control::LipsyncMode;
 
 /// Which lip sync drives the mouth; applies to the next utterance (F3 toggles the mode while running).
 #[derive(Deserialize, Clone, Debug, PartialEq)]
@@ -232,8 +222,7 @@ impl SpeechConfig {
         if !self.socket.as_os_str().is_empty() {
             return self.socket.clone();
         }
-        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-        runtime.join("riggy.sock")
+        riggy::control::default_speech_socket()
     }
 }
 
@@ -252,6 +241,11 @@ pub fn load(path: &Path) -> Config {
     };
     if let Some(model) = std::env::var_os("RIGGY_MODEL") {
         config.avatar.path = model.into();
+    }
+    // The tray starts riggy this way: on the desktop whatever the config says for testing.
+    if std::env::var_os("RIGGY_DESKTOP").is_some_and(|v| v == "1") {
+        config.window.transparent = true;
+        config.window.always_on_top = true;
     }
     config
 }

@@ -1,8 +1,11 @@
-//! The desktop window: optionally borderless and transparent, kept above other windows and letting clicks through to the desktop. F2 toggles click-through; while it is off, dragging with the left mouse button moves the window.
+//! The desktop window: optionally borderless and transparent, kept above other windows and letting clicks through to the desktop. F2 or the tray toggles click-through; while it is off, dragging with the left mouse button moves the window. The tray can also close it.
 
 use bevy::prelude::*;
 use bevy::window::{CompositeAlphaMode, CursorOptions, PrimaryWindow, WindowLevel};
 
+use riggy::control::Command;
+
+use crate::commands::Received;
 use crate::config::WindowConfig;
 
 /// Wayland app ID and X11 class, which KWin window rules match on.
@@ -42,7 +45,7 @@ pub struct DesktopWindowPlugin;
 
 impl Plugin for DesktopWindowPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (toggle_click_through, drag_move));
+        app.add_systems(Update, (toggle_click_through, obey, drag_move));
     }
 }
 
@@ -53,6 +56,23 @@ fn toggle_click_through(keys: Res<ButtonInput<KeyCode>>, mut cursors: Query<&mut
     for mut cursor in &mut cursors {
         cursor.hit_test = !cursor.hit_test;
         info!("click-through {}", if cursor.hit_test { "off" } else { "on" });
+    }
+}
+
+/// Click-through and closing as the tray asks.
+fn obey(mut commands: MessageReader<Received>, mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>, mut exit: MessageWriter<AppExit>) {
+    for Received(command) in commands.read() {
+        match *command {
+            Command::ClickThrough(on) => {
+                for mut cursor in &mut cursors {
+                    cursor.hit_test = !on;
+                }
+            }
+            Command::Quit => {
+                exit.write(AppExit::Success);
+            }
+            Command::Lipsync(_) => {}
+        }
     }
 }
 

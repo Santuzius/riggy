@@ -21,6 +21,8 @@ use crate::avatar::AvatarSet;
 use crate::config::{Config, LipsyncConfig, LipsyncMode};
 use crate::lipsync::{CueSource, Request, sound};
 use crate::animation::mouth::MouthTarget;
+use crate::commands::Received;
+use riggy::control::Command;
 
 pub struct SpeechPlugin;
 
@@ -60,16 +62,24 @@ impl Default for Header {
     }
 }
 
-/// Applies `[lipsync]` from the config when it changes; F3 cycles through the modes of this build until the next change.
-fn lipsync_mode(feed: Res<Feed>, config: Res<Config>, keys: Res<ButtonInput<KeyCode>>, mut applied: Local<Option<LipsyncConfig>>, mut mode: Local<LipsyncMode>) {
+/// Applies `[lipsync]` from the config when it changes; F3 cycles through the modes of this build, and the tray picks one. A config change keeps the picked mode unless it changes `mode` itself.
+fn lipsync_mode(feed: Res<Feed>, config: Res<Config>, keys: Res<ButtonInput<KeyCode>>, mut commands: MessageReader<Received>, mut applied: Local<Option<LipsyncConfig>>, mut mode: Local<LipsyncMode>) {
     let mut changed = false;
     if applied.as_ref() != Some(&config.lipsync) {
+        if applied.as_ref().is_none_or(|a| a.mode != config.lipsync.mode) {
+            *mode = config.lipsync.mode;
+        }
         *applied = Some(config.lipsync.clone());
-        *mode = config.lipsync.mode;
         changed = true;
     }
+    for Received(command) in commands.read() {
+        if let Command::Lipsync(picked) = command {
+            *mode = *picked;
+            changed = true;
+        }
+    }
     if keys.just_pressed(KeyCode::F3) {
-        let modes = CueSource::available_modes();
+        let modes = LipsyncMode::available();
         let next = modes.iter().position(|m| m == &*mode).map_or(0, |i| (i + 1) % modes.len());
         *mode = modes[next];
         changed = true;

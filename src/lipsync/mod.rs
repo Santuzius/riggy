@@ -68,18 +68,6 @@ impl CueSource {
         }
     }
 
-    /// The modes this build offers, in the order F3 cycles through them.
-    pub fn available_modes() -> Vec<LipsyncMode> {
-        let mut modes = vec![LipsyncMode::Sound];
-        if cfg!(feature = "rhubarb") {
-            modes.push(LipsyncMode::Rhubarb);
-        }
-        if cfg!(feature = "espeak") {
-            modes.push(LipsyncMode::Text);
-        }
-        modes
-    }
-
     /// Playback waits for the first cues.
     pub fn wants_cues(&self) -> bool {
         *self != Self::Sound

@@ -3,6 +3,7 @@
 mod animation;
 mod audio;
 mod avatar;
+mod commands;
 mod config;
 mod lipsync;
 mod speech;
@@ -23,6 +24,6 @@ fn main() {
     }))
     .insert_resource(window::clear_color(&config.window))
     .insert_resource(config)
-    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, animation::AnimationPlugin, speech::SpeechPlugin, view::ViewPlugin, window::DesktopWindowPlugin))
+    .add_plugins((config::ConfigPlugin, commands::CommandsPlugin, avatar::AvatarPlugin, animation::AnimationPlugin, speech::SpeechPlugin, view::ViewPlugin, window::DesktopWindowPlugin))
     .run();
 }
