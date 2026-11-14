@@ -1,11 +1,18 @@
-//! Motion of machine avatars ([`Machine`]): the body turns as `facing` says, hidden parts shrink away, the body floats and wobbles slowly, parts spin about the vertical axis, and while riggy speaks the parts move apart (expression `open`) and the lights pulse with the voice (expression `glow`).
+//! Motion of machine avatars ([`Machine`]): the body turns as `facing` says, hidden parts shrink away, a light and a bloom halo can make the glow shine, the body floats and wobbles slowly, parts spin about the vertical axis, and while riggy speaks the parts move apart (expression `open`) and the lights pulse with the voice (expression `glow`).
 
 use std::collections::HashMap;
 use std::f32::consts::TAU;
 
+use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
 use bevy::prelude::*;
 
 use crate::avatar::{AvatarSet, ExpressionName, Expressions, Machine, Parts};
+
+/// The light a machine carries, with its power at `glow` weight 1.
+#[derive(Component)]
+struct GlowLight {
+    lumens: f32,
+}
 use crate::speech::Voice;
 
 /// Seconds the glow takes to follow the voice's level.
@@ -17,7 +24,7 @@ pub struct MachinePlugin;
 
 impl Plugin for MachinePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (float_and_spin.in_set(AvatarSet::Pose), speak.in_set(AvatarSet::Express)));
+        app.add_systems(Update, (light_up, float_and_spin.in_set(AvatarSet::Pose), (speak, follow_glow).chain().in_set(AvatarSet::Express)));
     }
 }
 
@@ -100,6 +107,35 @@ fn speak(time: Res<Time>, voice: Res<Voice>, mut state: Local<Speaking>, mut ava
         let open = state.open * state.open * (3.0 - 2.0 * state.open);
         expressions.set(ExpressionName::Custom("open".into()), open);
         expressions.set(ExpressionName::Custom("glow".into()), state.glow);
+    }
+}
+
+/// Once a machine appears, gives the camera its bloom and the machine its light.
+fn light_up(mut commands: Commands, machines: Query<(&Machine, &Parts), Added<Machine>>, cameras: Query<Entity, With<Camera3d>>) {
+    for (machine, parts) in &machines {
+        if machine.bloom > 0.0 {
+            for camera in &cameras {
+                // Only what is brighter than white spreads, so the lit surfaces stay sharp.
+                let prefilter = BloomPrefilter { threshold: 1.5, threshold_softness: 0.3 };
+                commands.entity(camera).insert(Bloom { intensity: machine.bloom, prefilter, composite_mode: BloomCompositeMode::Additive, low_frequency_boost: 0.3, high_pass_frequency: 0.5, ..Bloom::NATURAL });
+            }
+        }
+        let Some(light) = &machine.light else { continue };
+        let Some(part) = parts.bones.get(&light.part) else {
+            warn!("[machine.light] part {:?} is not in [parts]", light.part);
+            continue;
+        };
+        let [r, g, b] = light.color;
+        let point = PointLight { color: Color::linear_rgb(r, g, b), intensity: 0.0, range: light.range, shadow_maps_enabled: false, ..default() };
+        commands.spawn((point, GlowLight { lumens: light.lumens }, Transform::from_translation(Vec3::from(light.offset)), ChildOf(part.entity)));
+    }
+}
+
+/// Makes the machine's light as bright as its glow.
+fn follow_glow(avatars: Query<&Expressions, With<Machine>>, mut lights: Query<(&GlowLight, &mut PointLight)>) {
+    let Some(glow) = avatars.iter().next().map(|e| e.weights.get(&ExpressionName::Custom("glow".into())).copied().unwrap_or(0.0)) else { return };
+    for (light, mut point) in &mut lights {
+        point.intensity = light.lumens * glow;
     }
 }
 

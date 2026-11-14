@@ -23,14 +23,17 @@ wobble = 2.0
 spin = { middle = -10.0, bottom = 18.0 }
 speaking_spin = { middle = -3.0 }
 open_time = 0.3
-rest_glow = 0.3
-glow_gain = 6.0
+rest_glow = 0.12
+glow_gain = 10.0
+# A halo around the eye, and a red light just in front of it on the inner rings (offset from the body's centre along its axis, in metres).
+bloom = 0.45
+light = { part = "body", offset = [0.0, 1.0, 0.0], color = [1.0, 0.22, 0.06], lumens = 600000.0, range = 4.0 }
 
-# Texture files in the model's folder; the emission texture is orange already, so its colour only sets the strength at full glow.
+# Texture files in the model's folder; the emission texture is orange already; its colour shifts it towards red and sets the strength at full glow, bright enough to bloom.
 [material]
 base_color = "ColorMap[1K].jpg"
 orm = "ORM_Map[1K].png"
 normal = "NormalMap_GL[1K].png"
 emission = "EmissionMap[1K].png"
-emission_color = [10.0, 10.0, 10.0]
+emission_color = [80.0, 22.0, 12.0]
 

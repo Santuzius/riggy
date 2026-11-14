@@ -225,6 +225,31 @@ pub struct Machine {
     pub rest_glow: f32,
     /// Weight of `glow` per unit of the voice's RMS level (full scale = 1).
     pub glow_gain: f32,
+    /// Strength of the halo around what glows (0 = none, about 0.3 strong); only light brighter than white spreads.
+    pub bloom: f32,
+    /// A light at the glowing part that shines on the parts around it, as bright as `glow` says.
+    pub light: Option<MachineLight>,
+}
+
+/// A point light carried by a machine's part (mapping file: `[machine.light]`).
+#[derive(serde::Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct MachineLight {
+    pub part: String,
+    /// Position relative to the part, in the part's own axes and model units.
+    pub offset: [f32; 3],
+    /// Linear RGB.
+    pub color: [f32; 3],
+    /// Luminous power in lumens at `glow` weight 1.
+    pub lumens: f32,
+    /// Distance in metres beyond which it lights nothing.
+    pub range: f32,
+}
+
+impl Default for MachineLight {
+    fn default() -> Self {
+        Self { part: "body".into(), offset: [0.0; 3], color: [1.0; 3], lumens: 100_000.0, range: 5.0 }
+    }
 }
 
 impl Default for Machine {
@@ -241,6 +266,8 @@ impl Default for Machine {
             open_time: 0.3,
             rest_glow: 0.3,
             glow_gain: 6.0,
+            bloom: 0.0,
+            light: None,
         }
     }
 }
