@@ -19,6 +19,12 @@ The dev shell sets `RIGGY_DATA_DIR` to the checkout, so riggy takes its defaults
 
 So poses, mouth shapes and props can be tuned in the editor while the window shows the result.
 
+## Build times
+
+- In the dev shell a change to riggy's code rebuilds in seconds. A changed shell environment (e.g. a package added to the dev shell, which changes `PKG_CONFIG_PATH`) reruns the build scripts of the `*-sys` crates and so recompiles all of Bevy once.
+- Run rust-analyzer with its own target directory (`"cargo": { "targetDir": true }` in its initialization options), so its checks neither wait for nor invalidate the builds in the dev shell.
+- `nix build` uses crane: the dependencies are a derivation of their own (`buildDepsOnly`), rebuilt only when `Cargo.toml`, `Cargo.lock` or the features change.
+
 ## Debug inputs
 
 | Input | Effect |

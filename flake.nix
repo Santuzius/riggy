@@ -8,9 +8,11 @@
       url = "github:Santuzius/qwentts-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Builds the Cargo dependencies in a derivation of their own, so a change to riggy's source does not compile Bevy again.
+    crane.url = "github:ipetkov/crane";
   };
 
-  outputs = { self, nixpkgs, qwentts-nix, ... }:
+  outputs = { self, nixpkgs, qwentts-nix, crane, ... }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -46,22 +48,29 @@
       speechTools = [ pkgs.ffmpeg pkgs.pipewire pkgs.systemd ];
       # The speech server, which the tray runs where the NixOS module's systemd unit does not.
       qwentts = qwentts-nix.packages.${system}.default;
-      cargoToml = lib.importTOML ./Cargo.toml;
+      craneLib = crane.mkLib pkgs;
       # riggy with a choice of Cargo features: "rhubarb" puts the Rhubarb program on riggy's PATH, "espeak" links libespeak-ng (GPL-3.0-or-later, so that build is GPL-3.0-or-later as a whole). The package holds the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`.
-      mkRiggy = features: pkgs.rustPlatform.buildRustPackage {
-        pname = "riggy";
-        inherit (cargoToml.package) version;
-        src = lib.fileset.toSource {
-          root = ./.;
-          fileset = lib.fileset.unions [ ./Cargo.toml ./Cargo.lock ./src ./examples ./riggy.toml ./assets ./kwin ];
-        };
-        cargoLock.lockFile = ./Cargo.lock;
-        buildNoDefaultFeatures = true;
-        buildFeatures = features;
-        nativeBuildInputs = [ pkgs.pkg-config pkgs.makeWrapper ];
-        buildInputs = runtimeLibs ++ lib.optional (lib.elem "espeak" features) pkgs.espeak-ng;
-        # The unit tests run in the dev shell; the package build only compiles.
-        doCheck = false;
+      mkRiggy = features:
+        let
+          common = {
+            pname = "riggy";
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [ ./Cargo.toml ./Cargo.lock ./src ./examples ./riggy.toml ./assets ./kwin ];
+            };
+            strictDeps = true;
+            cargoExtraArgs = "--locked --no-default-features --features '${lib.concatStringsSep "," features}'";
+            nativeBuildInputs = [ pkgs.pkg-config ];
+            buildInputs = runtimeLibs ++ lib.optional (lib.elem "espeak" features) pkgs.espeak-ng;
+            # The unit tests run in the dev shell; the package build only compiles.
+            doCheck = false;
+          };
+          # Bevy and the other dependencies, rebuilt only when Cargo.lock or the features change.
+          cargoArtifacts = craneLib.buildDepsOnly common;
+        in
+        craneLib.buildPackage (common // {
+        inherit cargoArtifacts;
+        nativeBuildInputs = common.nativeBuildInputs ++ [ pkgs.makeWrapper ];
         # share/riggy holds the defaults ($RIGGY_DATA_DIR: riggy.toml and the mapping files), laid out as in the repository; share/kwin/scripts/riggy the KWin script that places the avatar on the panel; the start menu entry starts the tray.
         postInstall = ''
           mkdir -p $out/share/riggy/assets $out/share/kwin/scripts
@@ -82,11 +91,11 @@
           wrapProgram $out/bin/riggy-tray --set-default RIGGY_DATA_DIR $out/share/riggy --prefix PATH : ${lib.makeBinPath [ pkgs.systemd pkgs.xdg-utils pkgs.kdePackages.kconfig qwentts ]}
         '';
         meta = {
-          inherit (cargoToml.package) description;
+          inherit ((lib.importTOML ./Cargo.toml).package) description;
           license = if lib.elem "espeak" features then lib.licenses.gpl3Plus else lib.licenses.mit;
           mainProgram = "riggy";
         };
-      };
+      });
     in
     {
       packages.${system} = {
