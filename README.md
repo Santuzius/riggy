@@ -110,7 +110,7 @@ The agent gets the tool `speak(text, language)`, and its replies come out of Rig
 Use riggy-mcp as described in `riggy-mcp --help`.
 ```
 
-To write your own instructions instead, switch off "Default MCP instructions" in the tray.
+To write your own instructions instead, switch off "Advanced settings › Default MCP instructions" in the tray.
 
 #### Customize 🎛️
 
@@ -119,11 +119,12 @@ All you need is reachable through the tray:
 - Switch TTS or Avatar on/off
 - Select avatar
 - Select TTS voice or tempo
-- Switch riggy-mcp's default instructions for the agent on/off
 - Select lip sync method
-- Desktop: click-through, or move and turn Riggy with the mouse; size and view (whole figure to face)
+- Select size
+- Click-through, or move, turn and zoom Riggy with the mouse
 - Enable autostart at login or when an AI agent starts `riggy-mcp`
-- Open files for advanced configuration in your default editor
+- Advanced: switch riggy-mcp's default instructions for the agent on/off, open files for configuration in your default editor
+- Reset to defaults
 
 [doc/usage.md](doc/usage.md) explains each entry, the lip sync methods and the settings files.
 
@@ -145,7 +146,7 @@ The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds
 
 - The speech server takes a few seconds to load its model after login; the tray's tooltip says "Speech starting…" until then.
 - Switching speech off in the tray frees the GPU memory of the speech server.
-- With click-through off, drag Riggy with the left mouse button and zoom with the mouse wheel.
+- With click-through off, drag Riggy with the left mouse button to move it, with the right one to turn it, and zoom with the mouse wheel. Riggy keeps the turn and zoom for its next start.
 
 ## License 📄
 

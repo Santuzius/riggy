@@ -24,7 +24,7 @@ pub struct Settings {
     pub lipsync: LipsyncMode,
     /// Window size relative to `[window] width` and `height`.
     pub size: f32,
-    /// Framing between the whole figure (0) and the face (1).
+    /// Framing between the whole figure (0) and the face (1); set with the mouse wheel.
     pub zoom: f32,
     /// Turn of the figure in degrees, positive to its left; set by dragging the figure with the right mouse button.
     pub turn: f32,

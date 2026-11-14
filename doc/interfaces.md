@@ -14,7 +14,7 @@ riggy say [--language LANGUAGE] TEXT    speak TEXT and return when it has been p
 
 `riggy-mcp` is a stdio MCP server with one tool, `speak(text, language)`, that reads a short text aloud and returns at once. It fetches the speech from the Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`), changes its tempo with ffmpeg and sends it to Riggy's speech socket, so the agent's replies come out of Riggy's mouth; while Riggy is closed, `pw-play` plays it. Texts are queued, each plays to its end, and at least 3 s of silence separate them. With "Start automatically › When an AI agent starts riggy-mcp" on, it starts the tray if none runs. `RIGGY_SOCKET` points it at another speech socket.
 
-Its `initialize` reply carries `instructions` (from [instructions.md](../src/bin/riggy-mcp/instructions.md)): when the agent calls `speak` and what it passes. Clients that support this field, such as Claude Code, add them to the agent's prompt; `riggy-mcp --help` prints the same text for the others. "Default MCP instructions" in the tray switches them off.
+Its `initialize` reply carries `instructions` (from [instructions.md](../src/bin/riggy-mcp/instructions.md)): when the agent calls `speak` and what it passes. Clients that support this field, such as Claude Code, add them to the agent's prompt; `riggy-mcp --help` prints the same text for the others. "Advanced settings › Default MCP instructions" in the tray switches them off.
 
 ## Speech socket
 

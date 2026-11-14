@@ -1,4 +1,4 @@
-//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the tray moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`; on the desktop a drag's result is kept for the next start.
+//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face. The figure turns about its vertical axis as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -20,6 +20,8 @@ const MARGIN: f32 = 0.06;
 const FACE_HEIGHT: f32 = 0.32;
 /// Degrees the figure turns per logical pixel of a horizontal drag.
 const TURN_PER_PIXEL: f32 = 0.5;
+/// Seconds after the last wheel step at which the zoom is kept, so one turn of the wheel writes the settings once.
+const ZOOM_SETTLE: f32 = 0.5;
 
 pub struct ViewPlugin;
 
@@ -233,7 +235,8 @@ fn turn_avatar(
     if buttons.just_released(MouseButton::Right) {
         turning.drag_x = None;
         if config.on_desktop {
-            remember_turn(turning.degrees);
+            let degrees = turning.degrees;
+            remember(|settings| settings.turn = degrees);
         }
     }
     for (mut transform, root) in &mut avatars {
@@ -243,17 +246,24 @@ fn turn_avatar(
     }
 }
 
-/// Keeps the turn in the tray's settings, from which the next start takes it.
-fn remember_turn(degrees: f32) {
+/// Keeps a view made with the mouse in the tray's settings, from which the next start takes it.
+fn remember(change: impl FnOnce(&mut Settings)) {
     let mut settings = Settings::load();
-    settings.turn = degrees;
+    change(&mut settings);
     if let Err(err) = settings.save() {
-        warn!("cannot keep the turn: {err}");
+        warn!("cannot keep the view: {err}");
     }
 }
 
-/// Zoom from the mouse wheel and the tray.
-fn zoom(mut wheel: MessageReader<MouseWheel>, mut commands: MessageReader<Received>, mut cameras: Query<&mut Framing>) {
+/// Zoom from the mouse wheel and the control socket; on the desktop the wheel's zoom is kept once the wheel rests.
+fn zoom(
+    config: Res<Config>,
+    time: Res<Time>,
+    mut wheel: MessageReader<MouseWheel>,
+    mut commands: MessageReader<Received>,
+    mut cameras: Query<&mut Framing>,
+    mut unsaved_for: Local<Option<f32>>,
+) {
     let Ok(mut framing) = cameras.single_mut() else { return };
     for Received(command) in commands.read() {
         if let Command::Zoom(zoom) = *command {
@@ -266,6 +276,17 @@ fn zoom(mut wheel: MessageReader<MouseWheel>, mut commands: MessageReader<Receiv
             MouseScrollUnit::Pixel => event.y / 100.0,
         };
         framing.zoom = (framing.zoom + steps * 0.1).clamp(0.0, 1.0);
+        *unsaved_for = Some(0.0);
+    }
+    if let Some(seconds) = unsaved_for.as_mut() {
+        *seconds += time.delta_secs();
+        if *seconds >= ZOOM_SETTLE {
+            *unsaved_for = None;
+            if config.on_desktop {
+                let zoom = framing.zoom;
+                remember(|settings| settings.zoom = zoom);
+            }
+        }
     }
 }
 

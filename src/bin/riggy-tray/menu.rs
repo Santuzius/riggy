@@ -10,7 +10,6 @@ use crate::tray::{RiggyTray, lipsync_label, open};
 
 const TEMPOS: [f32; 6] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 const SIZES: [(&str, f32); 5] = [("Small", 0.75), ("Normal", 1.0), ("Large", 1.25), ("Larger", 1.5), ("Huge", 2.0)];
-const VIEWS: [(&str, f32); 3] = [("Whole figure", 0.0), ("Upper body", 0.6), ("Face", 1.0)];
 
 type Select<T> = fn(&mut RiggyTray, T);
 
@@ -60,11 +59,6 @@ impl RiggyTray {
             checkmark("Speech", !self.speech_off, |tray| tray.set_speech(tray.speech_off)),
             voice_menu,
             radio_menu("Tempo", TEMPOS.iter().map(|&t| (format!("{t}×"), t)).collect(), &self.settings.tempo, |tray, tempo| tray.choose(|s| s.tempo = tempo)),
-            // riggy-mcp reads it when an agent starts it.
-            checkmark("Default MCP instructions", self.settings.mcp_instructions, |tray| {
-                let on = !tray.settings.mcp_instructions;
-                tray.choose(|s| s.mcp_instructions = on);
-            }),
         ]
     }
 
@@ -75,23 +69,13 @@ impl RiggyTray {
             checkmark("Show Riggy", self.avatar_running, |tray| tray.set_avatar(!tray.avatar_running)),
             radio_menu("Avatar", models, &self.model(), RiggyTray::set_model),
             radio_menu("Lip sync", modes, &self.settings.lipsync, |tray, mode| tray.choose_and_send(|s| s.lipsync = mode, |s| AvatarCommand::Lipsync(s.lipsync))),
-            self.desktop_menu(),
+            radio_menu("Size", labelled(&SIZES), &self.settings.size, RiggyTray::set_size),
+            // Off: the left mouse button moves Riggy, the right one turns it, the wheel zooms.
+            checkmark("Click-through", self.settings.click_through, |tray| {
+                let on = !tray.settings.click_through;
+                tray.choose_and_send(|s| s.click_through = on, |s| AvatarCommand::ClickThrough(s.click_through));
+            }),
         ]
-    }
-
-    fn desktop_menu(&self) -> MenuItem<Self> {
-        let s = &self.settings;
-        submenu(
-            "Desktop",
-            vec![
-                checkmark("Click-through (off: drag to move or turn)", s.click_through, |tray| {
-                    let on = !tray.settings.click_through;
-                    tray.choose_and_send(|s| s.click_through = on, |s| AvatarCommand::ClickThrough(s.click_through));
-                }),
-                radio_menu("Size", labelled(&SIZES), &s.size, RiggyTray::set_size),
-                radio_menu("View", labelled(&VIEWS), &s.zoom, |tray, zoom| tray.choose_and_send(|s| s.zoom = zoom, |s| AvatarCommand::Zoom(s.zoom))),
-            ],
-        )
     }
 
     fn start_menu(&self) -> MenuItem<Self> {
@@ -111,11 +95,15 @@ impl RiggyTray {
         submenu(
             "Advanced settings",
             vec![
+                // riggy-mcp reads it when an agent starts it.
+                checkmark("Default MCP instructions", self.settings.mcp_instructions, |tray| {
+                    let on = !tray.settings.mcp_instructions;
+                    tray.choose(|s| s.mcp_instructions = on);
+                }),
+                MenuItem::Separator,
                 action("Settings file", "document-edit", |_| open(&files::user_config())),
                 action("Avatar's mapping file", "document-edit", |tray| open(&files::mapping(&tray.model()))),
                 action("Avatars folder", "folder", |_| open(&files::models_dir())),
-                MenuItem::Separator,
-                action("Reset to defaults", "edit-reset", RiggyTray::reset_to_defaults),
             ],
         )
     }
@@ -150,6 +138,7 @@ impl ksni::Tray for RiggyTray {
         items.push(MenuItem::Separator);
         items.push(self.start_menu());
         items.push(self.files_menu());
+        items.push(action("Reset to defaults", "edit-reset", RiggyTray::reset_to_defaults));
         items.push(action("Quit", "application-exit", |tray| tray.quit()));
         items
     }

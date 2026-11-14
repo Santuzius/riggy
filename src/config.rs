@@ -19,7 +19,7 @@ pub struct Config {
     pub speech: SpeechConfig,
     pub lipsync: LipsyncConfig,
     pub debug: DebugConfig,
-    /// Started by the tray (`RIGGY_DESKTOP=1`): a turn made with the mouse goes into the tray's settings.
+    /// Started by the tray (`RIGGY_DESKTOP=1`): a zoom or turn made with the mouse goes into the tray's settings.
     #[serde(skip)]
     pub on_desktop: bool,
 }
@@ -263,7 +263,7 @@ pub fn load(path: &Path) -> Config {
     config
 }
 
-/// A transparent window above the others, with the model, size, view and turn chosen in the tray.
+/// A transparent window above the others, with the model and size chosen in the tray and the zoom and turn last made with the mouse.
 fn apply_tray_choices(config: &mut Config, choices: &riggy::settings::Settings) {
     config.on_desktop = true;
     let window = &mut config.window;

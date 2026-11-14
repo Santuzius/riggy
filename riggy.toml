@@ -2,7 +2,7 @@
 #
 # [avatar] name picks the model: ~/.local/share/riggy/models/NAME.glb, with its mapping file ~/.local/share/riggy/avatars/NAME.toml (created from riggy's default on first use). path and mapping name other files instead.
 
-# Window: size in logical pixels; transparent = borderless with a see-through background; always_on_top works on X11 only (on Wayland the KWin script in kwin/riggy does it, see doc/usage.md); click_through lets clicks go to the windows underneath (F2 toggles it; while it is off, dragging with the left mouse button moves the window and with the right one turns the figure); zoom from the whole figure (0) to the face (1); turn of the figure in degrees, positive to its left. On the desktop, started by the tray, the tray's choices and the last turn made with the mouse replace size, zoom and turn.
+# Window: size in logical pixels; transparent = borderless with a see-through background; always_on_top works on X11 only (on Wayland the KWin script in kwin/riggy does it, see doc/usage.md); click_through lets clicks go to the windows underneath (F2 toggles it; while it is off, dragging with the left mouse button moves the window and with the right one turns the figure); zoom from the whole figure (0) to the face (1); turn of the figure in degrees, positive to its left. On the desktop, started by the tray, the tray's size and the last zoom and turn made with the mouse replace size, zoom and turn.
 [window]
 width = 400
 height = 700
