@@ -16,7 +16,7 @@ A model whose file comes without its textures gets them as image files right aft
 riggy install ~/Downloads/robot.glb ~/Downloads/robot/ColorMap.jpg ~/Downloads/robot/ORM.png
 ```
 
-puts the images into `~/.local/share/riggy/models/robot/`, where the mapping file's `[material]` names them.
+puts the images into `~/.local/share/riggy/models/robot/`, where the mapping file's `[material]` names them. Clothing, a `.glb` without a skeleton, goes there the same way when it follows the avatar, and the mapping file's `[[clothing]]` names it.
 
 ## Mapping file
 
@@ -31,6 +31,7 @@ Positions and directions are in avatar space: +Y up, +Z the way the figure faces
 | `[humanoid]` | VRM humanoid bone name (`hips`, `head`, `jaw`, `leftUpperArm`, …) → node name in the model |
 | `[expressions.NAME]` | node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at full weight; `rotate` is an axis-angle vector in degrees, `translate` an offset in model units |
 | `[rest]` | bone changes applied permanently, e.g. lips that do not quite close |
+| `[[clothing]]` | clothing without a skeleton the avatar wears: `file` (in the model's folder, where `riggy install` puts a skeleton-less `.glb` named right after the avatar), `scale` (factor from its units to metres, default 1), `offset` (shift in model units); each of its points follows the bones of the nearest point of the body |
 | `[[props]]` | simple shapes on a bone (`shape = "sphere"` or `"cube"`, `center`, `size`, `color`, `unlit`), e.g. a mouth interior or teeth the model lacks |
 | `[parts]` | free part name → node name, for machines |
 | `[machine]` | makes the avatar a machine and sets how it moves: `body` (the part that floats and wobbles), `facing` (turn of the body, axis-angle in degrees, e.g. `[90, 0, 0]` shows its top to the viewer), `hidden` (parts not shown), `float` (height in model units), `float_rate` (Hz), `wobble` (degrees), `spin` and `speaking_spin` (part → degrees per second, positive anticlockwise seen from above), `open_time` (seconds), `rest_glow` and `glow_gain` (weight of `glow` while silent, and per unit of the voice's level), `bloom` (halo around what glows brighter than white, 0 = none), `light` (`{ part, offset, color, lumens, range }`, a point light at the part, as bright as `glow`) |

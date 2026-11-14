@@ -6,6 +6,7 @@
 //!
 //! Per frame the systems run in [`AvatarSet`] order: the backend resets every driven bone to its rest pose, pose code (idle) adds rotations, expression code sets weights, and the backend applies the weights.
 
+pub mod clothing;
 pub mod glb;
 
 use std::collections::HashMap;

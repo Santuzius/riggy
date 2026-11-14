@@ -7,6 +7,7 @@
 //! - `[parts]`: free part name → node name, for non-humanoid avatars;
 //! - `[machine]`: how a machine avatar moves (see [`Machine`]); with it the avatar is a machine, otherwise a humanoid;
 //! - `[material]`: textures for a model that comes without them (see [`MaterialSpec`]);
+//! - `[[clothing]]`: clothing without a skeleton worn by the avatar (see [`ClothingSpec`]);
 //! - `[[props]]`: extra shapes attached to a bone, such as a dark mouth interior or teeth the model lacks: `{ bone, shape = "sphere" | "cube", center = [x, y, z], size = [x, y, z], color = [r, g, b], unlit }`. Centre and size (radii for a sphere, half extents for a cube) are in avatar space and model units, as the shape sits in the rest pose; it then follows the bone.
 //! - `[rest]`: node name → bone change as in an expression, applied permanently; corrects the model's rest pose (for example lips that do not quite close).
 //! - `[expressions.<name>]`: node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at weight 1. `rotate` is an axis-angle vector in degrees (direction = axis, length = angle), `translate` an offset in model units; both are in avatar space.
@@ -27,11 +28,12 @@ use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
+use super::clothing::{ClothingSpec, spawn_clothing};
 use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, avatar_space};
 use crate::config::{AvatarKind, Config};
 
 /// Asset source id under which the model's directory is registered.
-const SOURCE: &str = "avatar";
+pub(super) const SOURCE: &str = "avatar";
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -45,6 +47,7 @@ pub struct Mapping {
     pub props: Vec<PropSpec>,
     pub machine: Option<Machine>,
     pub material: MaterialSpec,
+    pub clothing: Vec<ClothingSpec>,
 }
 
 /// Textures laid onto every material of the model, as files in the model's own folder (`models/NAME/`, where `riggy install NAME.glb TEXTURE ...` puts them). A model whose file brings its textures needs none of this.
@@ -80,6 +83,7 @@ impl Default for Mapping {
             props: Vec::new(),
             machine: None,
             material: MaterialSpec::default(),
+            clothing: Vec::new(),
         }
     }
 }
@@ -225,7 +229,7 @@ fn base_name(name: &str) -> &str {
     }
 }
 
-type TransformTree<'w, 's> = Query<'w, 's, (&'static Transform, Option<&'static ChildOf>, Has<AvatarRoot>)>;
+pub(super) type TransformTree<'w, 's> = Query<'w, 's, (&'static Transform, Option<&'static ChildOf>, Has<AvatarRoot>)>;
 
 fn pose_bone(entity: Entity, tree: &TransformTree) -> Option<PoseBone> {
     let (transform, parent, _) = tree.get(entity).ok()?;
@@ -309,6 +313,7 @@ fn resolve_avatar(
     let model = config.avatar.path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let surfaces = children.iter_descendants(root).filter_map(|e| surfaces.get(e).ok()).map(|(mesh, material)| (mesh.0.clone(), material.0.clone()));
     rig.glowing = apply_material(&mapping.material, &model, surfaces, &asset_server, &mut meshes, &mut materials);
+    spawn_clothing(&mapping.clothing, &model, mapping.scale, root, &mut commands, &asset_server);
 
     let mut avatar = commands.entity(root);
     avatar.insert((rig, parts));
@@ -373,6 +378,11 @@ fn apply_material(
 }
 
 impl GlbRig {
+    /// Avatar-space transform of `entity` in the rest pose, identity for an unknown entity.
+    pub(super) fn rest_space(&self, entity: Entity) -> Affine3A {
+        self.rest_spaces.get(&entity).copied().unwrap_or(Affine3A::IDENTITY)
+    }
+
     fn spawn_props(&self, mapping: &Mapping, commands: &mut Commands, meshes: &mut Assets<Mesh>, materials: &mut Assets<StandardMaterial>) {
         for prop in &mapping.props {
             let Some((&bone, &space)) = self.nodes.get(&prop.bone).and_then(|e| Some((e, self.rest_spaces.get(e)?))) else {

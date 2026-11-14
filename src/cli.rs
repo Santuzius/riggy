@@ -10,7 +10,7 @@ use riggy::{settings, speech_server};
 const USAGE: &str = "\
 Usage:
   riggy                                   show the avatar (the tray icon riggy-tray does this for you)
-  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb), each avatar followed by its textures (.png, .jpg) if its file has none
+  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb), each avatar followed by its textures (.png, .jpg) if its file has none and its clothing (.glb without a skeleton)
   riggy say [--language LANGUAGE] TEXT    speak TEXT (LANGUAGE: English, German, auto; default English)";
 
 /// What the command line asks for.
@@ -76,6 +76,7 @@ pub fn install(files: &[PathBuf]) -> ExitCode {
                 avatar = Some(name);
             }
             Ok(Installed::Texture { avatar, path }) => println!("Installed a texture of {avatar:?} as {}", path.display()),
+            Ok(Installed::Clothing { avatar, path }) => println!("Installed clothing of {avatar:?} as {}; name it in the mapping file under [[clothing]]", path.display()),
             Err(err) => {
                 eprintln!("riggy: {err}");
                 failed = true;

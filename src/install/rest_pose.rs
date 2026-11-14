@@ -80,6 +80,11 @@ pub fn rest_pose_fix(glb: &[u8]) -> Result<Option<RestPoseFix>, String> {
 }
 
 /// A GLB file's two chunks: the glTF JSON and the binary buffer.
+/// Whether the GLB `glb` has a skeleton (a skin); one without is clothing or a rigid model.
+pub fn has_skeleton(glb: &[u8]) -> Result<bool, String> {
+    Ok(Glb::parse(glb)?.gltf["skins"].as_array().is_some_and(|skins| !skins.is_empty()))
+}
+
 struct Glb {
     gltf: Value,
     binary: Vec<u8>,

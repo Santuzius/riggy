@@ -2,6 +2,7 @@
 //!
 //! - `*.gguf`: a speech model, into the speech server's model folder (`riggy::speech_server::models_dir`).
 //! - `*.glb`: an avatar, into `~/.local/share/riggy/models/`, named after the file. A model whose bone nodes were flattened gets its rest pose back on the way (see [`rest_pose`]).
+//! - `*.glb` without a skeleton right after an avatar: clothing of that avatar, into its own folder (mapping file: `[[clothing]]`).
 //! - `*.png`, `*.jpg`: a texture of the avatar installed before it, into that model's own folder (`riggy::files::model_textures`), for a model whose file comes without its textures.
 
 mod rest_pose;
@@ -15,9 +16,10 @@ pub enum Installed {
     SpeechModel { path: PathBuf },
     Avatar { name: String, path: PathBuf, rebuilt_joints: Option<usize> },
     Texture { avatar: String, path: PathBuf },
+    Clothing { avatar: String, path: PathBuf },
 }
 
-/// Installs `file` by its extension; a texture goes to `avatar`, the avatar installed before it.
+/// Installs `file` by its extension; a texture, or a GLB without a skeleton (clothing), goes to `avatar`, the avatar installed before it.
 pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
     let extension = file.extension().and_then(|e| e.to_str()).map(str::to_lowercase);
     let file_name = file.file_name().ok_or("no file name")?;
@@ -28,9 +30,16 @@ pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
             Ok(Installed::SpeechModel { path })
         }
         Some("glb") => {
+            let bytes = std::fs::read(file).map_err(|err| format!("{}: {err}", file.display()))?;
+            if let Some(avatar) = avatar
+                && !rest_pose::has_skeleton(&bytes).map_err(|err| format!("{}: {err}", file.display()))?
+            {
+                let path = files::model_textures(avatar).join(file_name);
+                write(&path, bytes)?;
+                return Ok(Installed::Clothing { avatar: avatar.to_owned(), path });
+            }
             let name = file.file_stem().and_then(|s| s.to_str()).ok_or("the file name is not valid UTF-8")?.to_owned();
             let path = files::model(&name);
-            let bytes = std::fs::read(file).map_err(|err| format!("{}: {err}", file.display()))?;
             let fix = rest_pose::rest_pose_fix(&bytes).map_err(|err| format!("{}: {err}", file.display()))?;
             let rebuilt_joints = fix.as_ref().map(|fix| fix.joints);
             write(&path, fix.map_or(bytes, |fix| fix.glb))?;
