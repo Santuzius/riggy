@@ -65,52 +65,54 @@ const STALE: Duration = Duration::from_millis(200);
 struct LipState {
     /// When the last measure arrived.
     last: Option<Instant>,
-    /// Mouth shape of the last sound, scaled to a total weight of 1.
+    /// Smoothed mouth shape, viseme weights summing to 1 (all 0 before the first sound).
     shape: [f32; 5],
     /// Start of the current quiet stretch within speech.
     quiet_since: Option<Instant>,
 }
 
-/// Sets the mouth from the measure being heard now; leaves it alone while nothing plays, so the debug keys still work.
+/// Sets the mouth from the measures heard up to now; leaves it alone while nothing plays, so the debug keys still work.
 ///
-/// Speakers rarely close the mouth between words: in a quiet stretch shorter than `[mouth] pause_hold` the last shape stays open at `pause_opening`.
+/// The opening follows the loudness of each measure, while the shape follows the sound only with the lag `[mouth] shape_time`: a single 10 ms window decides the shape poorly, and real lips glide between vowel shapes. Speakers rarely close the mouth between words: in a quiet stretch shorter than `pause_hold` the shape stays open at `pause_opening`.
 fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut target: ResMut<MouthTarget>, mut state: Local<LipState>) {
     let now = Instant::now();
     let heard = now.checked_sub(Duration::from_secs_f32(config.mouth.audio_latency.max(0.0))).unwrap_or(now);
+    let mouth = &config.mouth;
+    let k = 1.0 - (-lipsync::HOP_SECONDS / mouth.shape_time.max(1e-3)).exp();
 
-    let mut current = None;
+    let was_speaking = voice.speaking;
+    let mut received = false;
     {
         let mut frames = feed.0.frames.lock().unwrap();
-        while frames.front().is_some_and(|f| f.at <= heard) {
-            current = frames.pop_front();
+        while let Some(frame) = frames.pop_front_if(|f| f.at <= heard) {
+            received = true;
+            voice.speaking = frame.active;
+            voice.level = frame.measure.level;
+            if !frame.active {
+                continue;
+            }
+            let open = lipsync::opening(&frame.measure, mouth.silence_level, mouth.loud_level);
+            let open = if open > 0.0 {
+                state.quiet_since = None;
+                let fresh = lipsync::shape(&frame.measure);
+                let first = state.shape.iter().sum::<f32>() == 0.0;
+                for (w, f) in state.shape.iter_mut().zip(fresh) {
+                    *w = if first { f } else { *w + (f - *w) * k };
+                }
+                open
+            } else {
+                let since = *state.quiet_since.get_or_insert(frame.at);
+                if (frame.at - since).as_secs_f32() < mouth.pause_hold { mouth.pause_opening } else { 0.0 }
+            };
+            target.0 = state.shape.map(|w| w * open);
         }
     }
 
-    let was_speaking = voice.speaking;
-    match current {
-        Some(frame) => {
-            state.last = Some(now);
-            voice.speaking = frame.active;
-            voice.level = frame.measure.level;
-            if frame.active {
-                let weights = lipsync::visemes(&frame.measure, config.mouth.silence_level, config.mouth.loud_level);
-                let total: f32 = weights.iter().sum();
-                if total > 0.0 {
-                    state.shape = weights.map(|w| w / total);
-                    state.quiet_since = None;
-                    target.0 = weights;
-                } else {
-                    let since = *state.quiet_since.get_or_insert(now);
-                    let open = if (now - since).as_secs_f32() < config.mouth.pause_hold { config.mouth.pause_opening } else { 0.0 };
-                    target.0 = state.shape.map(|w| w * open);
-                }
-            }
-        }
-        None if state.last.is_none_or(|t| now - t > STALE) => {
-            voice.speaking = false;
-            voice.level = 0.0;
-        }
-        None => {}
+    if received {
+        state.last = Some(now);
+    } else if state.last.is_none_or(|t| now - t > STALE) {
+        voice.speaking = false;
+        voice.level = 0.0;
     }
     if was_speaking && !voice.speaking {
         target.0 = [0.0; 5];

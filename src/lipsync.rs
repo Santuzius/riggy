@@ -19,7 +19,8 @@ pub struct Measure {
 }
 
 const WINDOW_SECONDS: f32 = 0.02;
-const HOP_SECONDS: f32 = 0.01;
+/// Time between two measures.
+pub const HOP_SECONDS: f32 = 0.01;
 /// Spacing of the analysed frequencies in Hz.
 const BIN_SPACING: f32 = 50.0;
 /// Windows quieter than this RMS skip the spectrum.
@@ -116,16 +117,20 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh).
-///
-/// The level between `silence` and `loud` (on a dB scale) sets the opening; `front` splits front vowels (ee, ih) from back ones (ou, oh, aa), and `f1` orders each group from closed to open.
+/// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh): the [`shape`] scaled by the [`opening`].
 pub fn visemes(m: &Measure, silence: f32, loud: f32) -> [f32; 5] {
-    let db = |x: f32| 20.0 * x.max(1e-6).log10();
-    let open = ((db(m.level) - db(silence)) / (db(loud) - db(silence))).clamp(0.0, 1.0);
-    if open == 0.0 {
-        return [0.0; 5];
-    }
+    let open = opening(m, silence, loud);
+    shape(m).map(|w| w * open)
+}
 
+/// How far the mouth opens (0–1): the level between `silence` and `loud`, on a dB scale.
+pub fn opening(m: &Measure, silence: f32, loud: f32) -> f32 {
+    let db = |x: f32| 20.0 * x.max(1e-6).log10();
+    ((db(m.level) - db(silence)) / (db(loud) - db(silence))).clamp(0.0, 1.0)
+}
+
+/// Which mouth shape the sound calls for, as viseme weights summing to 1: `front` splits front vowels (ee, ih) from back ones (ou, oh, aa), and `f1` orders each group from closed to open.
+pub fn shape(m: &Measure) -> [f32; 5] {
     // Measured medians of front: ee +2, ih +1.5 dB; aa −7, ou −22, oh −33 dB.
     let front = smoothstep(-5.0, 2.0, m.front);
     // Measured medians of f1: ee 330, ih 500 Hz; ou 375, oh 550, aa 640 Hz.
@@ -135,7 +140,7 @@ pub fn visemes(m: &Measure, silence: f32, loud: f32) -> [f32; 5] {
     let aa = ((height - 0.7) / 0.3).clamp(0.0, 1.0);
     let oh = 1.0 - ou - aa;
     let back = 1.0 - front;
-    [aa * back, front_height * front, ou * back, (1.0 - front_height) * front, oh * back].map(|w| w * open)
+    [aa * back, front_height * front, ou * back, (1.0 - front_height) * front, oh * back]
 }
 
 #[cfg(test)]

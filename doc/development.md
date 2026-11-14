@@ -58,7 +58,7 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 - `examples/say.rs` sends speech to the socket: a text through Qwen3-TTS, or with `--file` a raw PCM file (24 kHz s16le mono, the server's `pcm` format). `RIGGY_SOCKET` sets the socket.
 - A PCM file for repeatable tests: `curl -s -X POST http://127.0.0.1:8902/v1/audio/speech -H 'Content-Type: application/json' -d '{"voice":"serena","input":"See. Me. Tea.","language":"English","response_format":"pcm","seed":2}' -o temp/ee.pcm`
 - `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync.rs` come from such runs over one test word list per vowel.
-- `[mouth]` tunes the motion live: `time_constant` and `release_time` set how fast the mouth opens and closes, `pause_opening` and `pause_hold` how far it stays open in short pauses between words and for how long.
+- `[mouth]` tunes the motion live: `time_constant` and `release_time` set how fast the mouth opens and closes, `shape_time` how fast it changes from one shape to another, `pause_opening` and `pause_hold` how far it stays open in short pauses between words and for how long.
 - The log shows `speech started` and `speech ended` from the lip-sync clock, and `audio output: … Hz` once the sound device is open.
 
 ## Model preparation
