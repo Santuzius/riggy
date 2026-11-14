@@ -24,6 +24,8 @@ So poses, mouth shapes and props can be tuned in the editor while the window sho
 | Mouse wheel | zoom between the full figure and the face |
 | `1`–`5` | hold one mouth shape: `aa`, `ih`, `ou`, `ee`, `oh` |
 | `0` | mouth back to rest |
+| Left mouse button | drag the window to another place (while click-through is off) |
+| `F2` | toggle click-through: clicks go to the windows underneath |
 | `F3` | cycle lip sync through `sound`, `rhubarb` and `text` (next utterance) |
 | `F1` | print the model's node tree with avatar-space joint positions to the log |
 

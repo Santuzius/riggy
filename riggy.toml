@@ -5,9 +5,13 @@ kind = "glb"
 path = "assets/models/cyborg_girl.glb"
 mapping = "assets/avatars/cyborg_girl.toml"
 
+# Window: size in logical pixels; transparent = borderless with a see-through background; always_on_top works on X11 only (on Wayland the KWin script in kwin/riggy does it, see the README); click_through lets clicks go to the windows underneath (F2 toggles it; while it is off, dragging with the left mouse button moves the window).
 [window]
 width = 400
 height = 700
+transparent = false
+always_on_top = false
+click_through = false
 
 # Idle motion; angles in degrees, rates in Hz.
 [idle]

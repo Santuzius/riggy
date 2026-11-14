@@ -7,26 +7,22 @@ mod config;
 mod lipsync;
 mod speech;
 mod view;
+mod window;
 
 use bevy::prelude::*;
 
 fn main() {
     let config = config::load(&config::config_path());
-    let w = &config.window;
-    let [r, g, b, a] = w.background;
 
     let mut app = App::new();
     avatar::glb::register_model_source(&mut app, &config.avatar.path);
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
-        primary_window: Some(Window {
-            title: "riggy".into(),
-            resolution: (w.width, w.height).into(),
-            ..default()
-        }),
+        primary_window: Some(window::primary_window(&config.window)),
+        primary_cursor_options: Some(window::primary_cursor_options(&config.window)),
         ..default()
     }))
-    .insert_resource(ClearColor(Color::srgba(r, g, b, a)))
+    .insert_resource(window::clear_color(&config.window))
     .insert_resource(config)
-    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, animation::AnimationPlugin, speech::SpeechPlugin, view::ViewPlugin))
+    .add_plugins((config::ConfigPlugin, avatar::AvatarPlugin, animation::AnimationPlugin, speech::SpeechPlugin, view::ViewPlugin, window::DesktopWindowPlugin))
     .run();
 }
