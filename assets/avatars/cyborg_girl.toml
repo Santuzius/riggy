@@ -136,3 +136,12 @@ color = [0.8, 0.78, 0.72]
 [expressions.cheeks]
 "c_cheek_smile.l" = { translate = [2, 5, 0.5] }
 "c_cheek_smile.r" = { translate = [-2, 5, 0.5] }
+
+# Smile: corners up and back, cheeks raised a little, lower lip slightly up. riggy holds it at [idle] smile while idle.
+[expressions.happy]
+"c_lips_smile.l" = { translate = [3, 7, -3] }
+"c_lips_smile.r" = { translate = [-3, 7, -3] }
+"c_lips_bot.l" = { translate = [0.5, 0.8, 0] }
+"c_lips_bot.r" = { translate = [-0.5, 0.8, 0] }
+"c_cheek_smile.l" = { translate = [1.5, 4, 0.5] }
+"c_cheek_smile.r" = { translate = [-1.5, 4, 0.5] }

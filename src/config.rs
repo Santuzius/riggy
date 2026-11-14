@@ -141,6 +141,9 @@ pub struct IdleConfig {
     pub elbow_angle: f32,
     /// Sway and head drift while speaking, as a fraction of their size in silence.
     pub speaking_calm: f32,
+    /// Weight of the expression `happy` while idle, and while speaking.
+    pub smile: f32,
+    pub speaking_smile: f32,
 }
 
 impl Default for IdleConfig {
@@ -156,6 +159,8 @@ impl Default for IdleConfig {
             arm_angle: 12.0,
             elbow_angle: 8.0,
             speaking_calm: 0.3,
+            smile: 0.5,
+            speaking_smile: 0.15,
         }
     }
 }

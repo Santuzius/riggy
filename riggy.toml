@@ -24,6 +24,8 @@ head_angle = 3.0
 arm_angle = 12.0     # upper arms out from vertical
 elbow_angle = 8.0
 speaking_calm = 0.3  # sway and head drift while speaking, as a fraction of their size in silence
+smile = 0.5          # weight of the avatar's "happy" expression while idle
+speaking_smile = 0.15
 
 # Seconds between blinks (random in this range) and blink length.
 [blink]

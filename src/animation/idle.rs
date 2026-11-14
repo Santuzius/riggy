@@ -7,7 +7,7 @@ use std::f32::consts::TAU;
 use bevy::prelude::*;
 
 use super::stance::{self, Stance};
-use crate::avatar::{AvatarSet, Humanoid, HumanoidBone as B};
+use crate::avatar::{AvatarSet, ExpressionPreset, Expressions, Humanoid, HumanoidBone as B};
 use crate::config::Config;
 use crate::speech::Voice;
 
@@ -18,13 +18,25 @@ pub struct IdlePlugin;
 
 impl Plugin for IdlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, idle.in_set(AvatarSet::Pose));
+        app.add_systems(Update, (idle.in_set(AvatarSet::Pose), smile.in_set(AvatarSet::Express)));
     }
 }
 
 /// Smooth pseudo-noise in −1..1: two sines with an irrational frequency ratio, so the pattern does not visibly repeat.
 fn drift(t: f32, rate: f32, phase: f32) -> f32 {
     0.65 * (TAU * rate * t + phase).sin() + 0.35 * (TAU * rate * 1.618 * t + 2.0 * phase + 1.3).sin()
+}
+
+/// Holds the expression `happy` at `[idle] smile`, eased to `speaking_smile` while speaking.
+fn smile(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut weight: Local<Option<f32>>, mut avatars: Query<&mut Expressions, With<Humanoid>>) {
+    let c = &config.idle;
+    let wanted = if voice.speaking { c.speaking_smile } else { c.smile };
+    let k = 1.0 - (-time.delta_secs() / CALM_TIME).exp();
+    let now = weight.get_or_insert(wanted);
+    *now += (wanted - *now) * k;
+    for mut expressions in &mut avatars {
+        expressions.set(ExpressionPreset::Happy, *now);
+    }
 }
 
 /// Scale of sway and head drift: 1 in silence, `[idle] speaking_calm` while speaking, eased between them.
