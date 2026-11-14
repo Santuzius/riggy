@@ -10,6 +10,8 @@ pub mod clothing;
 pub mod glb;
 #[cfg(feature = "vrm")]
 pub mod vrm;
+#[cfg(feature = "vrm")]
+mod rebind;
 
 use std::collections::HashMap;
 use std::fmt;

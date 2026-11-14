@@ -1,0 +1,8 @@
+# Cyber-style girl by IBUKI-PLANET (VRM 1.0). The model brings its bones and expressions; this file only corrects how it was made.
+
+# The long coat is bound to the thighs like trousers and so follows each leg; most of that binding moves to the hips, so the coat hangs from the pelvis while the legs step inside it.
+[[rebind]]
+material = "N00_007_01_Tops_01_CLOTH"
+from = ["leftUpperLeg", "rightUpperLeg"]
+to = "hips"
+share = 0.8
