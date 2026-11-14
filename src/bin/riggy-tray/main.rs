@@ -1,6 +1,6 @@
 //! `riggy-tray`: the tray icon that controls speech and the avatar, started from the start menu entry "Riggy", at login, or by `riggy-mcp`.
 //!
-//! Its menu switches speech on and off (the flag file `riggy-mcp` checks, and the speech server's user service, whose GPU memory it frees), picks voice and tempo, shows or closes the avatar, picks the avatar's model, lip-sync mode and how it stands on the desktop, chooses when the tray starts by itself, opens the files for advanced settings and puts all of Riggy's settings back to the defaults (keeping the old files as `*.old`). The choices persist in `riggy::settings`. A left click on the icon shows or closes the avatar. Quitting the tray closes the avatar too. Only one tray runs at a time (`riggy::tray_process`).
+//! It runs the speech server as its child where no systemd unit does (`riggy::speech_server::Runner`). Its menu switches speech on and off (the flag file `riggy-mcp` checks, and the speech server, whose GPU memory it frees), picks voice and tempo, shows or closes the avatar, picks the avatar's model, lip-sync mode and how it stands on the desktop, chooses when the tray starts by itself, opens the files for advanced settings and puts all of Riggy's settings back to the defaults (keeping the old files as `*.old`). The choices persist in `riggy::settings`. A left click on the icon shows or closes the avatar. Quitting the tray closes the avatar too. Only one tray runs at a time (`riggy::tray_process`).
 
 mod avatar;
 mod icon;

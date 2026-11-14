@@ -40,7 +40,13 @@ services.riggy.enable = true;
 
 Then rebuild your system, e.g. with `sudo nixos-rebuild switch`.
 
-On other distributions, `nix profile add github:Santuzius/riggy` installs Riggy; the speech server is then started by hand as [qwentts-nix](https://github.com/Santuzius/qwentts-nix) describes, on port 8902.
+On other distributions, install it with:
+
+```bash
+nix profile add github:Santuzius/riggy
+```
+
+The tray then runs the speech server itself.
 
 ### 2. Install models
 

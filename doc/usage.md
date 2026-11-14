@@ -6,7 +6,7 @@ A left click on the tray icon shows or closes Riggy. The menu:
 
 | Entry | What it does |
 |---|---|
-| Speech | switches speech on or off. Off stops the speech server's systemd user unit `qwentts`, which frees its GPU memory, and makes `speak` play nothing; it stays off across logins. |
+| Speech | switches speech on or off. Off stops the speech server, which frees its GPU memory, and makes `speak` play nothing; it stays off across logins. The server is the systemd user unit `qwentts` where the NixOS module installs it; otherwise the tray runs it (`tts-server`) as its child on port 8902. |
 | Voice, Tempo | apply from the next spoken text on |
 | Show Riggy | starts or closes the avatar on the desktop |
 | Avatar | the installed avatars (see [avatars.md](avatars.md)); Riggy restarts with the chosen one |

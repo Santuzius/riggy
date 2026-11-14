@@ -8,7 +8,7 @@ riggy install FILE ...                  install speech models (.gguf) and avatar
 riggy say [--language LANGUAGE] TEXT    speak TEXT and return when it has been played
 ```
 
-`riggy install` puts `.gguf` files into the speech server's model folder and restarts the server, and `.glb` files into Riggy's avatars folder (see [avatars.md](avatars.md)). `riggy say` speaks like `riggy-mcp`, in the voice and tempo chosen in the tray.
+`riggy install` puts `.gguf` files into the speech server's model folder and restarts the server (the tray starts its own server with them by itself), and `.glb` files into Riggy's avatars folder (see [avatars.md](avatars.md)). `riggy say` speaks like `riggy-mcp`, in the voice and tempo chosen in the tray.
 
 ## MCP server
 

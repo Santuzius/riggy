@@ -80,9 +80,13 @@ pub fn install(files: &[PathBuf]) -> ExitCode {
         }
     }
     if speech_models && !settings::speech_off() {
-        match speech_server::control("restart") {
-            Ok(()) => println!("Restarting the speech server with the new models."),
-            Err(err) => eprintln!("riggy: cannot restart the speech server: {err}"),
+        if !speech_server::unit_installed() {
+            println!("The tray starts the speech server with the new models.");
+        } else {
+            match speech_server::control_unit("restart") {
+                Ok(()) => println!("Restarting the speech server with the new models."),
+                Err(err) => eprintln!("riggy: cannot restart the speech server: {err}"),
+            }
         }
     }
     if failed { ExitCode::FAILURE } else { ExitCode::SUCCESS }

@@ -44,6 +44,8 @@
       };
       lib = pkgs.lib;
       speechTools = [ pkgs.ffmpeg pkgs.pipewire pkgs.systemd ];
+      # The speech server, which the tray runs where the NixOS module's systemd unit does not.
+      qwentts = qwentts-nix.packages.${system}.default;
       cargoToml = lib.importTOML ./Cargo.toml;
       # riggy with a choice of Cargo features: "rhubarb" puts the Rhubarb program on riggy's PATH, "espeak" links libespeak-ng (GPL-3.0-or-later, so that build is GPL-3.0-or-later as a whole). The package holds the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`.
       mkRiggy = features: pkgs.rustPlatform.buildRustPackage {
@@ -69,7 +71,7 @@
           install -Dm644 assets/riggy.desktop $out/share/applications/riggy.desktop
           install -Dm644 assets/riggy.svg $out/share/icons/hicolor/scalable/apps/riggy.svg
         '';
-        # Speech (riggy say, riggy-mcp) goes through ffmpeg and, while the avatar is closed, pw-play; systemctl switches the speech server; xdg-open opens the tray's files; kwriteconfig6 enables the KWin script.
+        # Speech (riggy say, riggy-mcp) goes through ffmpeg and, while the avatar is closed, pw-play; the tray switches the speech server with systemctl or runs it (tts-server); xdg-open opens the tray's files; kwriteconfig6 enables the KWin script.
         postFixup = ''
           wrapProgram $out/bin/riggy \
             --set-default RIGGY_DATA_DIR $out/share/riggy \
@@ -77,7 +79,7 @@
             --prefix PATH : ${lib.makeBinPath speechTools} \
             ${lib.optionalString (lib.elem "rhubarb" features) "--prefix PATH : ${rhubarb}/bin"}
           wrapProgram $out/bin/riggy-mcp --prefix PATH : ${lib.makeBinPath speechTools}
-          wrapProgram $out/bin/riggy-tray --set-default RIGGY_DATA_DIR $out/share/riggy --prefix PATH : ${lib.makeBinPath [ pkgs.systemd pkgs.xdg-utils pkgs.kdePackages.kconfig ]}
+          wrapProgram $out/bin/riggy-tray --set-default RIGGY_DATA_DIR $out/share/riggy --prefix PATH : ${lib.makeBinPath [ pkgs.systemd pkgs.xdg-utils pkgs.kdePackages.kconfig qwentts ]}
         '';
         meta = {
           inherit (cargoToml.package) description;

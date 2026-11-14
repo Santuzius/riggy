@@ -24,6 +24,7 @@ pub struct RiggyTray {
     pub icons: Icons,
     /// The desktop uses a dark colour scheme, so the icon is drawn light.
     pub dark_panel: bool,
+    pub server: speech_server::Runner,
 }
 
 impl RiggyTray {
@@ -38,6 +39,7 @@ impl RiggyTray {
             restart_avatar: false,
             icons: Icons::draw(),
             dark_panel: false,
+            server: speech_server::Runner::detect(),
         }
     }
 
@@ -62,6 +64,11 @@ impl RiggyTray {
         } else if !voices.is_empty() {
             self.voices = voices;
         }
+        if !self.speech_off
+            && let Err(err) = self.server.keep_running()
+        {
+            eprintln!("riggy-tray: cannot start the speech server: {err}");
+        }
         self.avatar_running = self.avatar.running();
         if self.restart_avatar && !self.avatar_running {
             self.restart_avatar = false;
@@ -82,8 +89,8 @@ impl RiggyTray {
             return;
         }
         self.speech_off = !on;
-        if let Err(err) = speech_server::control(if on { "start" } else { "stop" }) {
-            eprintln!("riggy-tray: {err}");
+        if let Err(err) = if on { self.server.start() } else { self.server.stop() } {
+            eprintln!("riggy-tray: speech server: {err}");
         }
     }
 
@@ -157,6 +164,10 @@ impl RiggyTray {
     pub fn quit(&mut self) -> ! {
         if self.avatar_running {
             self.avatar.stop();
+        }
+        // A child server goes with the tray; the systemd unit stays as systemd runs it.
+        if matches!(self.server, speech_server::Runner::Child { .. }) {
+            let _ = self.server.stop();
         }
         std::process::exit(0);
     }
