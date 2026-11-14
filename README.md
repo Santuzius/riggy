@@ -5,14 +5,6 @@ Bring your AI agent to life as a mascot figure or just use it in your creative p
 > [!NOTE]
 > Built and tested only on Linux, KDE Plasma 6 and Nvidia T1000 4GB VRAM GPU: weak hardware, but almost instant high quality outputs in default configuration!
 
-## Screenshots 📷
-
-<img src="doc/images/riggy.png" alt="Riggy's default avatar, turned slightly to its left" width="250">
-
-<details><summary>License note of the avatar model on the screenshots</summary>
-["Cyborg girl" by 3dchmoshnik](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54), licensed under CC BY 4.0.
-</details>
-
 ## Quick start 🚀
 
 ### 0. Install/use Nix
@@ -68,24 +60,14 @@ riggy install ~/Downloads/qwen-talker-0.6b-customvoice-Q8_0.gguf ~/Downloads/qwe
 
 #### Avatars
 
-The default avatar is [3dchmoshnik's "Cyborg girl" from the Fab](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54).
+Riggy brings mapping files for these avatars. Download each in the GLB format, unpack it, and install it from its folder with the command in the table; it then appears in the tray menu under its file name.
 
-<details><summary>Its license note</summary>
-["Cyborg girl" by 3dchmoshnik](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54), licensed under CC BY 4.0.
-</details>
+|Avatar|Author|Screenshot|Features|Source|Install command|License|
+|---|---|---|---|---|---|---|
+|Cyborg girl (default)|[3dchmoshnik](https://www.fab.com/sellers/3dchmoshnik/about)|<img src="doc/images/Screenshot_20261114_203121.png" alt="Cyborg girl by 3dchmoshnik" width="250">|Humanoid, animated idle, walking and speaking|[link](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54)|`riggy install ./cyborg_girl.glb`|[CC BY 4.0](https://creativecommons.org/licenses/#licenses-40)|
+|Ballytic-813c|[Lio-3DW](https://www.fab.com/sellers/Lio-3DW/about)|<img src="doc/images/Screenshot_20261114_203211.png" alt="Ballytic-813c by Lio-3DW" width="250">|Non-humanoid, animated idle and speaking|[link](https://www.fab.com/listings/6ab2b5b2-393c-43fa-be61-f18d7753e31e)|`riggy install ./ModelFormats/Ballytic813c_Reforged_ByLio3DW.glb ./Textures/CleanTextures/1K_Textures/{"ColorMap[1K].jpg","ORM_Map[1K].png","NormalMap_GL[1K].png"} "./Textures/EmissionMap[1K].png"`|[Fab Standard License](https://www.fab.com/eula)|
 
-Download it in the GLB format and then install using:
-
-```bash
-riggy install ~/Downloads/cyborg_girl/cyborg_girl.glb
-```
-
-Other avatars in GLB format are installed the same way and appear in the tray menu under their file name. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md). Riggy brings one for a second avatar, the floating machine [Ballytic-813c Reforged by Lio3DW](https://www.fab.com/sellers/Lio-3DW), whose file comes without textures. Unpack its zip and install the model with them:
-
-```bash
-cd ~/Downloads/"[Ballytic813c]-ReforgedMachine-GameReadyPBR- ByLio3DW"
-riggy install ModelFormats/Ballytic813c_Reforged_ByLio3DW.glb Textures/CleanTextures/1K_Textures/{"ColorMap[1K].jpg","ORM_Map[1K].png","NormalMap_GL[1K].png"} "Textures/EmissionMap[1K].png"
-```
+Other avatars in GLB format are installed the same way. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
 
 ### 3. Start
 
