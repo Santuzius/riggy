@@ -55,7 +55,7 @@ The default TTS model is [Serveurperso/Qwen3-TTS-GGUF from the Hugging Face](htt
 Download `qwen-talker-0.6b-customvoice-Q8_0.gguf` and `qwen-tokenizer-12hz-Q8_0.gguf`. Then install them using:
 
 ```bash
-riggy install ~/Downloads/qwen-talker-0.6b-customvoice-Q8_0.gguf ~/Downloads/qwen-tokenizer-12hz-Q8_0.gguf
+riggy install ./qwen-talker-0.6b-customvoice-Q8_0.gguf ./qwen-tokenizer-12hz-Q8_0.gguf
 ```
 
 #### Avatars
