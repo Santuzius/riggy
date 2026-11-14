@@ -8,7 +8,7 @@ use bevy::asset::io::AssetSourceId;
 use bevy::camera::visibility::NoFrustumCulling;
 use bevy::math::Affine3A;
 use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
-use bevy::mesh::{Mesh, VertexAttributeValues};
+use bevy::mesh::{Indices, Mesh, VertexAttributeValues};
 use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
@@ -32,17 +32,21 @@ pub struct ClothingSpec {
     pub scale: f32,
     /// Shift in avatar space, in model units of the avatar.
     pub offset: [f32; 3],
+    /// Lowest and highest height in avatar space, in model units of the avatar, between which the clothing is kept; triangles reaching outside are dropped.
+    pub keep: Option<[f32; 2]>,
+    /// Least distance of the clothing from the skin, in model units of the avatar; clothing points closer to the body or inside it are pushed out to it. 0 leaves them.
+    pub gap: f32,
 }
 
 impl Default for ClothingSpec {
     fn default() -> Self {
-        Self { file: String::new(), scale: 1.0, offset: [0.0; 3] }
+        Self { file: String::new(), scale: 1.0, offset: [0.0; 3], keep: None, gap: 0.0 }
     }
 }
 
 /// Root of a piece of clothing, child of the avatar root.
 #[derive(Component)]
-struct Clothing;
+struct Clothing(ClothingSpec);
 
 /// Spawns the clothing of `specs` on the avatar `root` of model `model`, whose units are `avatar_scale` metres.
 pub fn spawn_clothing(specs: &[ClothingSpec], model: &str, avatar_scale: f32, root: Entity, commands: &mut Commands, asset_server: &AssetServer) {
@@ -50,7 +54,7 @@ pub fn spawn_clothing(specs: &[ClothingSpec], model: &str, avatar_scale: f32, ro
         let path = AssetPath::from_path(&Path::new(model).join(&spec.file)).into_owned().with_source(AssetSourceId::from(SOURCE));
         commands
             .spawn((
-                Clothing,
+                Clothing(spec.clone()),
                 Name::new(format!("clothing {}", spec.file)),
                 Transform::from_translation(Vec3::from(spec.offset)).with_scale(Vec3::splat(spec.scale / avatar_scale)),
                 WorldAssetRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset(path))),
@@ -64,6 +68,8 @@ pub fn spawn_clothing(specs: &[ClothingSpec], model: &str, avatar_scale: f32, ro
 #[derive(Clone, Copy)]
 struct BodyVertex {
     position: Vec3,
+    /// Outward surface direction in avatar space.
+    normal: Vec3,
     joints: [u16; 4],
     weights: [f32; 4],
 }
@@ -136,6 +142,7 @@ fn fit_clothing(
     ready: On<WorldInstanceReady>,
     mut commands: Commands,
     parents: Query<&ChildOf>,
+    specs: Query<&Clothing>,
     rigs: Query<&GlbRig>,
     children: Query<&Children>,
     skins: Query<(&Mesh3d, &SkinnedMesh)>,
@@ -146,6 +153,7 @@ fn fit_clothing(
 ) {
     let clothing = ready.entity;
     let Ok(root) = parents.get(clothing).map(ChildOf::parent) else { return };
+    let Ok(Clothing(spec)) = specs.get(clothing) else { return };
     let Ok(rig) = rigs.get(root) else {
         warn!("clothing: the avatar has not loaded");
         return;
@@ -166,9 +174,19 @@ fn fit_clothing(
         else {
             continue;
         };
-        for ((&position, &joints), &weights) in positions.iter().zip(joints).zip(weights) {
+        let normals = match mesh.attribute(Mesh::ATTRIBUTE_NORMAL) {
+            Some(VertexAttributeValues::Float32x3(normals)) => normals.clone(),
+            _ => vec![[0.0; 3]; positions.len()],
+        };
+        for (((&position, &joints), &weights), &normal) in positions.iter().zip(joints).zip(weights).zip(&normals) {
             let joints = joints.map(|j| first + j);
-            body.push(BodyVertex { position: bones.skinning(joints, weights).transform_point3(Vec3::from(position)), joints, weights });
+            let skinning = bones.skinning(joints, weights);
+            body.push(BodyVertex {
+                position: skinning.transform_point3(Vec3::from(position)),
+                normal: skinning.transform_vector3(Vec3::from(normal)).normalize_or_zero(),
+                joints,
+                weights,
+            });
         }
     }
     if body.is_empty() || bones.joints.len() > MAX_JOINTS {
@@ -181,23 +199,26 @@ fn fit_clothing(
     for entity in children.iter_descendants(clothing) {
         let Ok(mesh) = surfaces.get(entity) else { continue };
         let Some(mesh) = meshes.get(&mesh.0) else { continue };
-        let Some(fitted) = fitted_mesh(mesh, avatar_space(entity, &tree), &grid, &bones) else { continue };
+        let Some(fitted) = fitted_mesh(mesh, avatar_space(entity, &tree), spec, &grid, &bones) else { continue };
         commands.entity(entity).insert((NoFrustumCulling, Mesh3d(meshes.add(fitted)), SkinnedMesh { inverse_bindposes: inverse_bindposes.clone(), joints: bones.joints.clone() }));
     }
     info!("clothing fitted to {} body vertices", grid.vertices.len());
 }
 
-/// `mesh`, placed in avatar space by `space`, with each vertex bound to the bones of the nearest body vertex and moved into bind space.
-fn fitted_mesh(mesh: &Mesh, space: Affine3A, grid: &BodyGrid, bones: &Bones) -> Option<Mesh> {
+/// `mesh`, placed in avatar space by `space` and cut and pushed out as `spec` says, with each vertex bound to the bones of the nearest body vertex and moved into bind space.
+fn fitted_mesh(mesh: &Mesh, space: Affine3A, spec: &ClothingSpec, grid: &BodyGrid, bones: &Bones) -> Option<Mesh> {
     let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { return None };
     let mut fitted = mesh.clone();
     let mut joint_indices = Vec::with_capacity(positions.len());
     let mut joint_weights = Vec::with_capacity(positions.len());
     let mut to_bind = Vec::with_capacity(positions.len());
     let mut new_positions = Vec::with_capacity(positions.len());
+    let mut heights = Vec::with_capacity(positions.len());
     for &position in positions {
         let position = space.transform_point3(Vec3::from(position));
+        heights.push(position.y);
         let nearest = grid.nearest(position)?;
+        let position = pushed_out(position, nearest, spec.gap);
         let unskin = bones.skinning(nearest.joints, nearest.weights).inverse();
         new_positions.push(unskin.transform_point3(position).to_array());
         joint_indices.push(nearest.joints);
@@ -215,7 +236,20 @@ fn fitted_mesh(mesh: &Mesh, space: Affine3A, grid: &BodyGrid, bones: &Bones) -> 
     }
     fitted.insert_attribute(Mesh::ATTRIBUTE_JOINT_INDEX, VertexAttributeValues::Uint16x4(joint_indices));
     fitted.insert_attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT, joint_weights);
+    if let Some([low, high]) = spec.keep
+        && let Some(indices) = mesh.indices()
+    {
+        let indices: Vec<u32> = indices.iter().map(|i| i as u32).collect();
+        let kept = indices.chunks_exact(3).filter(|triangle| triangle.iter().all(|&i| (low..=high).contains(&heights[i as usize]))).flatten().copied().collect();
+        fitted.insert_indices(Indices::U32(kept));
+    }
     Some(fitted)
+}
+
+/// `position` moved along the skin's outward direction at `body` until it is at least `gap` outside the skin.
+fn pushed_out(position: Vec3, body: &BodyVertex, gap: f32) -> Vec3 {
+    let outside = (position - body.position).dot(body.normal);
+    if gap > 0.0 && outside < gap { position + body.normal * (gap - outside) } else { position }
 }
 
 #[cfg(test)]
@@ -224,9 +258,16 @@ mod tests {
 
     #[test]
     fn the_nearest_body_vertex_is_found_across_cells() {
-        let vertex = |x: f32| BodyVertex { position: Vec3::new(x, 0.0, 0.0), joints: [x as u16, 0, 0, 0], weights: [1.0, 0.0, 0.0, 0.0] };
+        let vertex = |x: f32| BodyVertex { position: Vec3::new(x, 0.0, 0.0), normal: Vec3::Y, joints: [x as u16, 0, 0, 0], weights: [1.0, 0.0, 0.0, 0.0] };
         let grid = BodyGrid::new(vec![vertex(0.0), vertex(100.0), vertex(250.0)]);
         assert_eq!(grid.nearest(Vec3::new(140.0, 10.0, 0.0)).unwrap().joints[0], 100);
         assert_eq!(grid.nearest(Vec3::new(1000.0, 0.0, 0.0)).unwrap().joints[0], 250);
+    }
+
+    #[test]
+    fn clothing_inside_the_body_is_pushed_out_to_the_gap() {
+        let body = BodyVertex { position: Vec3::ZERO, normal: Vec3::Y, joints: [0; 4], weights: [1.0, 0.0, 0.0, 0.0] };
+        assert_eq!(pushed_out(Vec3::new(1.0, -5.0, 0.0), &body, 2.0), Vec3::new(1.0, 2.0, 0.0));
+        assert_eq!(pushed_out(Vec3::new(1.0, 7.0, 0.0), &body, 2.0), Vec3::new(1.0, 7.0, 0.0));
     }
 }
