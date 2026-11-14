@@ -3,9 +3,11 @@
 //! - `*.gguf`: a speech model, into the speech server's model folder (`riggy::speech_server::models_dir`).
 //! - `*.glb`: an avatar, into `~/.local/share/riggy/models/`, named after the file. A model whose bone nodes were flattened gets its rest pose back on the way (see [`rest_pose`]).
 //! - `*.glb` without a skeleton right after an avatar: clothing of that avatar, into its own folder (mapping file: `[[clothing]]`).
-//! - `*.vrm`: a VRM 1.0 avatar, into `~/.local/share/riggy/models/`; a VRM 0.x file is refused with a hint to convert it.
+//! - `*.vrm`: a VRM 1.0 avatar, into `~/.local/share/riggy/models/`; a VRM 0.x file is refused with a hint to convert it. Its mapping file's `[[cloth]]` adds spring chains to a garment that has none (see [`cloth`]).
 //! - `*.png`, `*.jpg`: a texture of the avatar installed before it, into that model's own folder (`riggy::files::model_textures`), for a model whose file comes without its textures.
 
+mod cloth;
+mod gltf;
 mod rest_pose;
 mod vrm;
 
@@ -51,6 +53,8 @@ pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
             let bytes = std::fs::read(file).map_err(|err| format!("{}: {err}", file.display()))?;
             vrm::check(&bytes).map_err(|err| format!("{}: {err}", file.display()))?;
             let name = file.file_stem().and_then(|s| s.to_str()).ok_or("the file name is not valid UTF-8")?.to_owned();
+            let specs = files::mapping_text(&name).map(|text| cloth::cloth_specs(&text)).transpose()?.unwrap_or_default();
+            let bytes = if specs.is_empty() { bytes } else { cloth::add_cloth(&bytes, &specs).map_err(|err| format!("{}: {err}", file.display()))?.unwrap_or(bytes) };
             let path = files::models_dir().join(file_name);
             write(&path, bytes)?;
             Ok(Installed::Avatar { name, path, rebuilt_joints: None })

@@ -4,12 +4,10 @@
 
 use std::collections::HashMap;
 
-use bevy::math::{DMat4, DQuat, DVec3};
-use serde_json::{Value, json};
+use bevy::math::DMat4;
+use serde_json::Value;
 
-const MAGIC: u32 = 0x4654_6C67;
-const JSON_CHUNK: u32 = 0x4E4F_534A;
-const BIN_CHUNK: u32 = 0x004E_4942;
+use super::gltf::{Glb, inverse_bind_matrices, local_matrix, set_trs};
 
 /// A model with its rest pose rebuilt.
 pub struct RestPoseFix {
@@ -79,105 +77,16 @@ pub fn rest_pose_fix(glb: &[u8]) -> Result<Option<RestPoseFix>, String> {
     Ok(Some(RestPoseFix { glb: Glb { gltf, binary }.to_bytes(), joints: bind_worlds.len() }))
 }
 
-/// A GLB file's two chunks: the glTF JSON and the binary buffer.
 /// Whether the GLB `glb` has a skeleton (a skin); one without is clothing or a rigid model.
 pub fn has_skeleton(glb: &[u8]) -> Result<bool, String> {
     Ok(Glb::parse(glb)?.gltf["skins"].as_array().is_some_and(|skins| !skins.is_empty()))
 }
 
-pub(super) struct Glb {
-    pub(super) gltf: Value,
-    binary: Vec<u8>,
-}
-
-impl Glb {
-    pub(super) fn parse(bytes: &[u8]) -> Result<Self, String> {
-        let word = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap())).ok_or("the file ends early");
-        if word(0)? != MAGIC {
-            return Err("not a GLB file".into());
-        }
-        let json_length = word(12)? as usize;
-        if word(16)? != JSON_CHUNK {
-            return Err("the GLB file does not start with its JSON chunk".into());
-        }
-        let gltf = serde_json::from_slice(bytes.get(20..20 + json_length).ok_or("the file ends early")?).map_err(|err| err.to_string())?;
-        let bin_at = 20 + json_length;
-        let binary = match word(bin_at) {
-            Ok(length) if word(bin_at + 4)? == BIN_CHUNK => bytes.get(bin_at + 8..bin_at + 8 + length as usize).ok_or("the file ends early")?.to_vec(),
-            _ => Vec::new(),
-        };
-        Ok(Self { gltf, binary })
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
-        let mut text = serde_json::to_vec(&self.gltf).expect("JSON values serialise");
-        text.resize(text.len().next_multiple_of(4), b' ');
-        let mut binary = self.binary.clone();
-        binary.resize(binary.len().next_multiple_of(4), 0);
-        let total = 12 + 8 + text.len() + if binary.is_empty() { 0 } else { 8 + binary.len() };
-
-        let mut bytes = Vec::with_capacity(total);
-        for word in [MAGIC, 2, total as u32, text.len() as u32, JSON_CHUNK] {
-            bytes.extend_from_slice(&word.to_le_bytes());
-        }
-        bytes.extend_from_slice(&text);
-        if !binary.is_empty() {
-            bytes.extend_from_slice(&(binary.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(&BIN_CHUNK.to_le_bytes());
-            bytes.extend_from_slice(&binary);
-        }
-        bytes
-    }
-}
-
-fn floats<const N: usize>(value: &Value) -> Option<[f64; N]> {
-    let values: Vec<f64> = value.as_array()?.iter().filter_map(Value::as_f64).collect();
-    values.try_into().ok()
-}
-
-/// A node's local transform, from its `matrix` or its translation, rotation and scale.
-fn local_matrix(node: &Value) -> DMat4 {
-    if let Some(matrix) = floats::<16>(&node["matrix"]) {
-        return DMat4::from_cols_array(&matrix);
-    }
-    let translation = floats::<3>(&node["translation"]).map_or(DVec3::ZERO, DVec3::from_array);
-    let rotation = floats::<4>(&node["rotation"]).map_or(DQuat::IDENTITY, DQuat::from_array);
-    let scale = floats::<3>(&node["scale"]).map_or(DVec3::ONE, DVec3::from_array);
-    DMat4::from_scale_rotation_translation(scale, rotation, translation)
-}
-
-/// Writes `matrix` (rotation, scale and translation) into the node as translation, rotation and scale.
-fn set_trs(node: &mut Value, matrix: DMat4) {
-    let (scale, rotation, translation) = matrix.to_scale_rotation_translation();
-    let node = node.as_object_mut().expect("glTF nodes are objects");
-    node.remove("matrix");
-    node.insert("translation".into(), json!(translation.to_array()));
-    node.insert("rotation".into(), json!(rotation.normalize().to_array()));
-    node.insert("scale".into(), json!(scale.to_array()));
-}
-
-fn inverse_bind_matrices(gltf: &Value, binary: &[u8], skin: &Value) -> Result<Vec<DMat4>, String> {
-    let Some(accessor) = skin["inverseBindMatrices"].as_u64().map(|a| &gltf["accessors"][a as usize]) else {
-        // Without them glTF takes identity matrices.
-        return Ok(vec![DMat4::IDENTITY; skin["joints"].as_array().map_or(0, Vec::len)]);
-    };
-    let view = &gltf["bufferViews"][accessor["bufferView"].as_u64().ok_or("an accessor without a buffer view")? as usize];
-    let offset = (view["byteOffset"].as_u64().unwrap_or(0) + accessor["byteOffset"].as_u64().unwrap_or(0)) as usize;
-    let count = accessor["count"].as_u64().unwrap_or(0) as usize;
-    let bytes = binary.get(offset..offset + count * 64).ok_or("inverse bind matrices beyond the buffer")?;
-    let (matrices, _) = bytes.as_chunks::<64>();
-    Ok(matrices
-        .iter()
-        .map(|matrix| {
-            let (floats, _) = matrix.as_chunks::<4>();
-            DMat4::from_cols_array(&floats.iter().map(|&f| f32::from_le_bytes(f) as f64).collect::<Vec<_>>().try_into().expect("16 floats"))
-        })
-        .collect())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::math::DVec3;
+    use serde_json::json;
 
     /// A mesh node skinned to one bone node without a transform, whose inverse bind matrix places the bone at (0, 1, 0).
     fn flattened_model() -> Vec<u8> {

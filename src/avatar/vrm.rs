@@ -2,7 +2,7 @@
 //!
 //! MToon shades by the direction of each directional light and ignores its strength, so a VRM avatar is lit by one key light (`view`). bevy_vrm1 draws no outline on a double-sided material (most of a VRoid model), so the outlined ones are made single-sided; the inside of a skirt then shows in the outline colour, as in VRoid Hub's viewer.
 //!
-//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; one next to it may set `window_height`. Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
+//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; its own mapping file may set `window_height`; its `[[cloth]]` is applied by `riggy install` (`install::cloth`). Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
 
 use std::collections::HashMap;
 

@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 /// The default settings, also built in for a riggy that runs without its data folder.
 const DEFAULT_CONFIG: &str = include_str!("../riggy.toml");
 /// Default mapping files built in, by model name.
-const DEFAULT_MAPPINGS: [(&str, &str); 2] = [
+const DEFAULT_MAPPINGS: [(&str, &str); 3] = [
     ("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml")),
+    ("cyber_ver101", include_str!("../assets/avatars/cyber_ver101.toml")),
     ("Ballytic813c_Reforged_ByLio3DW", include_str!("../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml")),
 ];
 
@@ -109,6 +110,11 @@ pub fn configured_model() -> String {
 /// The user's mapping file of `name`.
 pub fn mapping(name: &str) -> PathBuf {
     data_dir().join("avatars").join(format!("{name}.toml"))
+}
+
+/// The text of the mapping file of `name`: the user's, or else riggy's default one.
+pub fn mapping_text(name: &str) -> Option<String> {
+    std::fs::read_to_string(mapping(name)).ok().or_else(|| default_mapping(name))
 }
 
 /// riggy's default mapping file of `name`, if it has one.

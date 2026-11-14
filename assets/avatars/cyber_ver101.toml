@@ -1,0 +1,15 @@
+# Cyber-style girl by IBUKI-PLANET (VRM 1.0). The model brings its bones and expressions; this file only adds what it lacks.
+
+# The long coat is bound to hips and thighs and has no working spring bones, so it would follow each leg. `riggy install` hangs cloth chains from the hips inside it and capsules on the legs, so it swings like her hair. Changes here take effect when the model is installed again.
+[[cloth]]
+material = "N00_007_01_Tops_01_CLOTH"
+bone = "hips"
+top = 0.85
+chains = 8
+segments = 3
+inset = 0.85
+stiffness = 0.6
+drag = 0.3
+gravity = 0.3
+hit_radius = 0.02
+legs = [0.075, 0.055]

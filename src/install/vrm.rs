@@ -1,6 +1,6 @@
 //! Checks a VRM file before it is installed: riggy's `vrm` backend reads VRM 1.0 only.
 
-use super::rest_pose::Glb;
+use super::gltf::Glb;
 
 /// Accepts a VRM 1.0 file; explains how to convert a VRM 0.x one.
 pub fn check(bytes: &[u8]) -> Result<(), String> {
