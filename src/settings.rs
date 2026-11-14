@@ -1,4 +1,4 @@
-//! What the tray keeps between runs, in `$XDG_STATE_HOME/riggy/` (default `~/.local/state/riggy/`): the choices in `settings.toml`, and the file `speech-off` while speech is switched off. The speech server's systemd unit checks that file, so speech stays off across logins.
+//! What the tray keeps between runs, in `~/.config/riggy/` (see `riggy::files`): the choices in `settings.toml`, and the file `speech-off` while speech is switched off. The speech server's systemd unit checks that file, so speech stays off across logins.
 
 use std::io;
 use std::path::PathBuf;
@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::control::LipsyncMode;
+pub use crate::files::config_dir;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default)]
@@ -34,29 +35,20 @@ impl Settings {
     }
 
     pub fn save(&self) -> io::Result<()> {
-        std::fs::create_dir_all(state_dir())?;
+        std::fs::create_dir_all(config_dir())?;
         std::fs::write(settings_file(), toml::to_string(self).map_err(io::Error::other)?)
     }
 }
 
-pub fn state_dir() -> PathBuf {
-    let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".local/state"));
-    state_home.join("riggy")
-}
-
 fn settings_file() -> PathBuf {
-    state_dir().join("settings.toml")
+    config_dir().join("settings.toml")
 }
 
 /// Exists while speech is switched off.
 pub fn speech_off_flag() -> PathBuf {
-    state_dir().join("speech-off")
+    config_dir().join("speech-off")
 }
 
 pub fn speech_off() -> bool {
     speech_off_flag().exists()
-}
-
-fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
 }

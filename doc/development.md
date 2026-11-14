@@ -3,8 +3,8 @@
 ## Running
 
 ```bash
-nix develop -c cargo run                                     # uses riggy.toml
-RIGGY_CONFIG=riggy.local.toml nix develop -c cargo run       # another config (riggy.local.toml is gitignored)
+nix develop -c cargo run                                     # defaults from the checkout, your settings from ~/.config/riggy
+RIGGY_CONFIG=$PWD/temp/my.toml nix develop -c cargo run      # other settings laid over the defaults
 RIGGY_MODEL=path/to/model.glb nix develop -c cargo run       # another model with the configured mapping
 ```
 
@@ -12,8 +12,10 @@ riggy re-reads its config and the avatar's mapping file about once a second whil
 
 | File | Applied live | Needs a restart |
 |---|---|---|
-| `riggy.toml` | `[idle]`, `[blink]`, `[mouth]`, `[lipsync]`, `[debug]` | `[avatar]`, `[window]`, `[speech]` |
-| mapping (`assets/avatars/*.toml`) | `[rest]`, `[expressions.*]`, `[[props]]` | `scale`, `[humanoid]`, `[parts]` |
+| `riggy.toml` (defaults) and `~/.config/riggy/riggy.toml` | `[idle]`, `[blink]`, `[mouth]`, `[lipsync]`, `[debug]` | `[avatar]`, `[window]`, `[speech]` |
+| mapping (`~/.local/share/riggy/avatars/*.toml`) | `[rest]`, `[expressions.*]`, `[[props]]` | `scale`, `[humanoid]`, `[parts]` |
+
+The dev shell sets `RIGGY_DATA_DIR` to the checkout, so riggy takes its defaults from the repository's `riggy.toml` and `assets/avatars/`; edits to `riggy.toml` apply while riggy runs. The mapping file riggy reads is the copy in `~/.local/share/riggy/avatars/`: tune that one, then copy it to `assets/avatars/` to make it the default.
 
 So poses, mouth shapes and props can be tuned in the editor while the window shows the result.
 
@@ -93,7 +95,7 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 ## Model preparation
 
 - `tools/fix_bind_pose.py IN.glb OUT.glb` gives the Fab cyborg girl's bone nodes a rest pose (see the README).
-- Models stay in the gitignored `assets/models/`; their licences do not allow redistribution.
+- Models stay in `~/.local/share/riggy/models/`, outside the repository; their licences do not allow redistribution.
 
 ## Mapping file features for models with gaps
 

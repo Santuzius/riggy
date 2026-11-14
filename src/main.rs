@@ -13,7 +13,11 @@ mod window;
 use bevy::prelude::*;
 
 fn main() {
-    let config = config::load(&config::config_path());
+    let config_path = config::config_path();
+    let config = config::load(&config_path);
+    if let Err(err) = riggy::files::ensure_user_files(&config.avatar.name) {
+        eprintln!("riggy: cannot create the files in {}: {err}", riggy::files::config_dir().display());
+    }
 
     let mut app = App::new();
     avatar::glb::register_model_source(&mut app, &config.avatar.path);

@@ -1,6 +1,6 @@
 //! `riggy-tray`: the tray icon that controls speech and the avatar.
 //!
-//! Its menu switches speech on and off (the flag file `riggy-mcp` checks, and the `qwentts` user service, whose GPU memory it frees), picks voice and tempo, shows or closes the avatar, and sets the avatar's click-through and lip-sync mode. The choices persist in `riggy::settings`. A left click on the icon shows or closes the avatar. Quitting the tray closes the avatar too.
+//! Its menu switches speech on and off (the flag file `riggy-mcp` checks, and the `qwentts` user service, whose GPU memory it frees), picks voice and tempo, shows or closes the avatar, sets the avatar's click-through and lip-sync mode, and puts all of riggy's settings back to the defaults (keeping the old files as `*.old`). The choices persist in `riggy::settings`. A left click on the icon shows or closes the avatar. Quitting the tray closes the avatar too.
 
 mod avatar;
 mod icon;
@@ -31,6 +31,7 @@ fn main() {
         voices: Vec::new(),
         avatar: Avatar::new(),
         avatar_running: false,
+        restart_avatar: false,
         icons: Icons::draw(),
     };
     // At login the tray may start before the panel; it then appears as soon as the panel is there.
@@ -62,6 +63,10 @@ fn main() {
                 tray.voices = voices;
             }
             tray.avatar_running = tray.avatar.running();
+            if tray.restart_avatar && !tray.avatar_running {
+                tray.restart_avatar = false;
+                tray.start_avatar();
+            }
         });
         std::thread::sleep(POLL);
     }
@@ -76,6 +81,8 @@ struct RiggyTray {
     voices: Vec<String>,
     avatar: Avatar,
     avatar_running: bool,
+    /// Start the avatar again once it has closed, so it reads its reset files.
+    restart_avatar: bool,
     icons: Icons,
 }
 
@@ -92,7 +99,7 @@ impl RiggyTray {
         let result = if on {
             std::fs::remove_file(&flag).or_else(|err| if err.kind() == std::io::ErrorKind::NotFound { Ok(()) } else { Err(err) })
         } else {
-            std::fs::create_dir_all(settings::state_dir()).and_then(|()| std::fs::write(&flag, ""))
+            std::fs::create_dir_all(settings::config_dir()).and_then(|()| std::fs::write(&flag, ""))
         };
         if let Err(err) = result {
             eprintln!("riggy-tray: {}: {err}", flag.display());
@@ -113,6 +120,21 @@ impl RiggyTray {
             self.start_avatar();
         } else if !shown && self.avatar_running {
             self.avatar.stop();
+        }
+    }
+
+    /// Puts riggy's settings, mapping files and the tray's choices back to the defaults and restarts the avatar with them.
+    fn reset_to_defaults(&mut self) {
+        if let Err(err) = riggy::files::reset_to_defaults() {
+            eprintln!("riggy-tray: cannot reset to the defaults: {err}");
+            return;
+        }
+        self.settings = Settings::default();
+        if self.avatar_running {
+            self.avatar.stop();
+            self.restart_avatar = true;
+        } else if self.settings.avatar {
+            self.start_avatar();
         }
     }
 
@@ -260,6 +282,13 @@ impl ksni::Tray for RiggyTray {
             .into(),
             self.lipsync_menu(),
             MenuItem::Separator,
+            StandardItem {
+                label: "Reset to defaults".into(),
+                icon_name: "edit-reset".into(),
+                activate: Box::new(|tray: &mut Self| tray.reset_to_defaults()),
+                ..Default::default()
+            }
+            .into(),
             StandardItem {
                 label: "Quit".into(),
                 icon_name: "application-exit".into(),

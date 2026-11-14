@@ -11,7 +11,7 @@ cargo run
 
 The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries (Vulkan, Wayland, X11, ALSA, udev) and the tools of the lip-sync modes (Rhubarb Lip Sync, eSpeak NG).
 
-The flake also builds riggy as a package with three programs: the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`. Run the avatar and the tray from the checkout, where `riggy.toml` and `assets/` are:
+The flake also builds riggy as a package with three programs: the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`:
 
 | Package | Cargo features | Lip-sync modes | License of the binary |
 |---|---|---|---|
@@ -21,12 +21,27 @@ The flake also builds riggy as a package with three programs: the avatar `riggy`
 
 riggy's source is MIT-licensed. The `espeak` feature links libespeak-ng, which is GPL-3.0-or-later, so a binary built with it is GPL-3.0-or-later as a whole. `src/lipsync/rhubarb_animation/` is a port of Rhubarb Lip Sync's animation rules under their MIT license (`LICENSE` in that folder).
 
+## Files
+
+riggy keeps its files where Linux programs usually do:
+
+| Path | What |
+|---|---|
+| `~/.config/riggy/riggy.toml` | your settings: only what differs from the defaults in `riggy.toml` of this repository |
+| `~/.config/riggy/settings.toml` | the choices made in the tray menu |
+| `~/.config/riggy/speech-off` | exists while speech is switched off |
+| `~/.local/share/riggy/models/NAME.glb` | the models, which are not part of riggy |
+| `~/.local/share/riggy/avatars/NAME.toml` | the mapping file of model `NAME`, copied from `assets/avatars/` the first time the model is used |
+
+`[avatar] name` picks the model (default `cyborg_girl`); `path` and `mapping` name other files instead. riggy creates its settings and the mapping file at its first start. The tray's "Reset to defaults" puts them back, keeping the replaced ones as `*.old`. `RIGGY_CONFIG` names another settings file.
+
 ## Model
 
-Models are not part of the repository. The default config expects `assets/models/cyborg_girl.glb`. The Fab download of this model stores its skeleton only in the skins' inverse bind matrices, so its bone nodes need a rest pose before they can be animated:
+Models are not part of the repository. The default expects `~/.local/share/riggy/models/cyborg_girl.glb`. The Fab download of this model stores its skeleton only in the skins' inverse bind matrices, so its bone nodes need a rest pose before they can be animated:
 
 ```bash
-python3 tools/fix_bind_pose.py ~/Downloads/cyborg_girl/cyborg_girl.glb assets/models/cyborg_girl.glb
+mkdir -p ~/.local/share/riggy/models
+python3 tools/fix_bind_pose.py ~/Downloads/cyborg_girl/cyborg_girl.glb ~/.local/share/riggy/models/cyborg_girl.glb
 ```
 
 `python3` with NumPy is part of the Nix shell.
@@ -44,7 +59,7 @@ Later connections wait until the earlier ones have been read. To try it with the
 nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
 ```
 
-Three lip-sync modes, chosen with `[lipsync] mode` in `riggy.toml` or cycled with F3 while running:
+Three lip-sync modes, chosen with `[lipsync] mode` in the settings, in the tray menu, or cycled with F3 while running:
 
 - `sound` (default): the mouth follows the sound itself. Loudness sets how far it opens, and the balance of low and high frequencies chooses between the five mouth shapes. Speech starts at once. `[mouth]` sets the loudness range, the smoothing and an extra delay of the mouth behind the sound.
 - `rhubarb`: [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) recognises the sounds and returns mouth shapes with timings, including closed lips for m, b and p. riggy cuts the arriving speech at pauses and analyses each piece (about 1 s per piece), so speech starts about 2 s later. The Nix shell provides `rhubarb`; the flake packages its Linux release.
@@ -66,15 +81,33 @@ claude mcp add --scope user tts riggy-mcp
 
 - **Speech**: on or off. Off stops the speech server's systemd user unit `qwentts`, which frees its GPU memory, and makes `speak` play nothing.
 - **Voice** and **Tempo**: apply from the next spoken text on.
-- **Show riggy**: starts or closes the avatar on the desktop (a left click on the icon does the same). The tray starts it with `RIGGY_DESKTOP=1`: transparent and above the other windows, whatever `riggy.toml` says.
+- **Show riggy**: starts or closes the avatar on the desktop (a left click on the icon does the same). The tray starts it with `RIGGY_DESKTOP=1`: transparent and above the other windows, whatever the settings say.
 - **Click-through**: off lets riggy be dragged with the left mouse button; on lets clicks go to the windows underneath.
 - **Lip sync**: the mode from the next utterance on.
 
-The choices are kept in `~/.local/state/riggy/settings.toml`; while speech is off, the file `~/.local/state/riggy/speech-off` exists, which the `qwentts` unit can check (`ConditionPathExists`) so that speech stays off across logins. The tray reaches the avatar through the control socket `$XDG_RUNTIME_DIR/riggy-control.sock`, one JSON command per line: `{"click_through":true}`, `{"lipsync":"text"}`, `"quit"`.
+- **Reset to defaults**: see [Files](#files).
+
+The choices are kept in `~/.config/riggy/settings.toml`; while speech is off, the file `~/.config/riggy/speech-off` exists, which the `qwentts` unit checks, so speech stays off across logins. The tray reaches the avatar through the control socket `$XDG_RUNTIME_DIR/riggy-control.sock`, one JSON command per line: `{"click_through":true}`, `{"lipsync":"text"}`, `"quit"`.
+
+## NixOS
+
+The flake's NixOS module installs riggy, starts `riggy-tray` with the graphical session and runs the speech server from [qwentts-nix](https://github.com/Santuzius/qwentts-nix) on port 8902:
+
+```nix
+# flake inputs
+riggy.url = "github:Santuzius/riggy";
+
+# configuration
+imports = [ inputs.riggy.nixosModules.default ];
+services.riggy.enable = true;
+services.qwentts.device = "Vulkan0";   # hardware settings of the speech server stay with the machine
+```
+
+The speech server's models are downloaded once as qwentts-nix describes.
 
 ## On the desktop
 
-Without the tray, these settings in `riggy.toml` make riggy stand on the desktop as a figure without a window around it:
+Without the tray, these settings in `~/.config/riggy/riggy.toml` make riggy stand on the desktop as a figure without a window around it:
 
 ```toml
 [window]
@@ -85,7 +118,7 @@ click_through = true    # clicks go to the windows underneath
 
 F2 switches click-through on and off while riggy has the keyboard focus. While click-through is off, dragging with the left mouse button moves the figure.
 
-On KDE Plasma the KWin script in `kwin/riggy/` places riggy on the top edge of the bottom panel at its right end, keeps it above other windows and out of the taskbar, the pager and Alt+Tab, and shows it on all virtual desktops. Install and enable it once:
+On KDE Plasma the KWin script in `kwin/riggy/` (the package installs it to `share/kwin/scripts/riggy`) places riggy on the top edge of the bottom panel at its right end, keeps it above other windows and out of the taskbar, the pager and Alt+Tab, and shows it on all virtual desktops. Without the package, install it from the checkout; either way, enable it once:
 
 ```bash
 kpackagetool6 --type KWin/Script --install kwin/riggy      # --upgrade after changes

@@ -1,6 +1,6 @@
 //! Settings from `riggy.toml`, reloaded when the file changes.
 //!
-//! The file is looked up in `$RIGGY_CONFIG`, then `./riggy.toml`. `$RIGGY_MODEL` overrides `[avatar] path`; `RIGGY_DESKTOP=1` makes the window transparent and keeps it above the others.
+//! The defaults come with riggy (`riggy.toml` in the repository); the user's `~/.config/riggy/riggy.toml` (or `$RIGGY_CONFIG`) holds only what differs and is laid over them table by table. See `riggy::files` for all paths. `$RIGGY_MODEL` overrides the model file; `RIGGY_DESKTOP=1` makes the window transparent and keeps it above the others.
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -73,19 +73,17 @@ pub enum AvatarKind {
 #[serde(default)]
 pub struct AvatarConfig {
     pub kind: AvatarKind,
-    /// Model file (GLB or VRM), absolute or relative to the working directory.
+    /// The model's name: its file is `~/.local/share/riggy/models/NAME.glb`, its mapping file `~/.local/share/riggy/avatars/NAME.toml`.
+    pub name: String,
+    /// Another model file instead (`~/` and paths relative to `~/.config/riggy/` work); filled in from `name` when empty.
     pub path: PathBuf,
-    /// Mapping file for the `glb` backend (humanoid bones and bone-driven expressions).
+    /// Another mapping file for the `glb` backend (humanoid bones and bone-driven expressions); filled in from `name` when empty.
     pub mapping: PathBuf,
 }
 
 impl Default for AvatarConfig {
     fn default() -> Self {
-        Self {
-            kind: AvatarKind::Glb,
-            path: "assets/models/cyborg_girl.glb".into(),
-            mapping: "assets/avatars/cyborg_girl.toml".into(),
-        }
+        Self { kind: AvatarKind::Glb, name: "cyborg_girl".into(), path: PathBuf::new(), mapping: PathBuf::new() }
     }
 }
 
@@ -227,21 +225,31 @@ impl SpeechConfig {
 }
 
 pub fn config_path() -> PathBuf {
-    std::env::var_os("RIGGY_CONFIG").map(PathBuf::from).unwrap_or_else(|| "riggy.toml".into())
+    riggy::files::user_config()
 }
 
-/// Reads the config; a missing file gives the defaults, a broken one is reported and gives the defaults too.
+/// The defaults with the user's settings in `path` laid over them; a broken user file is reported and ignored.
 pub fn load(path: &Path) -> Config {
-    let mut config = match std::fs::read_to_string(path) {
-        Ok(text) => toml::from_str(&text).unwrap_or_else(|err| {
-            eprintln!("riggy: {}: {err}", path.display());
-            Config::default()
-        }),
-        Err(_) => Config::default(),
-    };
-    if let Some(model) = std::env::var_os("RIGGY_MODEL") {
-        config.avatar.path = model.into();
+    let mut merged: toml::Table = toml::from_str(&riggy::files::default_config()).unwrap_or_else(|err| {
+        eprintln!("riggy: default settings: {err}");
+        toml::Table::new()
+    });
+    match std::fs::read_to_string(path).map(|text| toml::from_str::<toml::Table>(&text)) {
+        Ok(Ok(user)) => overlay(&mut merged, user),
+        Ok(Err(err)) => eprintln!("riggy: {}: {err}", path.display()),
+        Err(_) => {}
     }
+    let mut config: Config = toml::Value::Table(merged).try_into().unwrap_or_else(|err| {
+        eprintln!("riggy: {}: {err}", path.display());
+        Config::default()
+    });
+    if let Some(model) = std::env::var_os("RIGGY_MODEL") {
+        let model = PathBuf::from(model);
+        config.avatar.path = std::path::absolute(&model).unwrap_or(model);
+    }
+    let avatar = &mut config.avatar;
+    avatar.path = if avatar.path.as_os_str().is_empty() { riggy::files::model(&avatar.name) } else { riggy::files::resolve(&avatar.path) };
+    avatar.mapping = if avatar.mapping.as_os_str().is_empty() { riggy::files::mapping(&avatar.name) } else { riggy::files::resolve(&avatar.mapping) };
     // The tray starts riggy this way: on the desktop whatever the config says for testing.
     if std::env::var_os("RIGGY_DESKTOP").is_some_and(|v| v == "1") {
         config.window.transparent = true;
@@ -250,28 +258,44 @@ pub fn load(path: &Path) -> Config {
     config
 }
 
+/// Lays `over` onto `base`: tables merge key by key, everything else replaces.
+fn overlay(base: &mut toml::Table, over: toml::Table) {
+    for (key, value) in over {
+        match (base.get_mut(&key), value) {
+            (Some(toml::Value::Table(inner)), toml::Value::Table(value)) => overlay(inner, value),
+            (_, value) => {
+                base.insert(key, value);
+            }
+        }
+    }
+}
+
 pub fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
 }
 
-/// Polls `riggy.toml` once a second and swaps in the new settings (window and avatar changes need a restart).
+/// Polls the user's settings and the defaults once a second and swaps in the new settings (window and avatar changes need a restart).
 pub struct ConfigPlugin;
 
 #[derive(Resource)]
 struct ConfigWatch {
     path: PathBuf,
-    modified: Option<SystemTime>,
+    /// Modification times of the user's file and of the defaults file.
+    modified: [Option<SystemTime>; 2],
     timer: Timer,
+}
+
+impl ConfigWatch {
+    fn modified(&self) -> [Option<SystemTime>; 2] {
+        [modified(&self.path), riggy::files::default_config_file().and_then(|file| modified(&file))]
+    }
 }
 
 impl Plugin for ConfigPlugin {
     fn build(&self, app: &mut App) {
-        let path = config_path();
-        app.insert_resource(ConfigWatch {
-            modified: modified(&path),
-            path,
-            timer: Timer::new(Duration::from_secs(1), TimerMode::Repeating),
-        })
+        let mut watch = ConfigWatch { path: config_path(), modified: [None; 2], timer: Timer::new(Duration::from_secs(1), TimerMode::Repeating) };
+        watch.modified = watch.modified();
+        app.insert_resource(watch)
         .add_systems(Update, reload_config);
     }
 }
@@ -280,7 +304,7 @@ fn reload_config(time: Res<Time>, mut watch: ResMut<ConfigWatch>, mut config: Re
     if !watch.timer.tick(time.delta()).just_finished() {
         return;
     }
-    let modified = modified(&watch.path);
+    let modified = watch.modified();
     if modified == watch.modified {
         return;
     }
@@ -294,4 +318,24 @@ fn reload_config(time: Res<Time>, mut watch: ResMut<ConfigWatch>, mut config: Re
         speech: config.speech.clone(),
         ..fresh
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_settings_override_only_what_they_set() {
+        let mut base: toml::Table = toml::from_str("[idle]\nbreath_rate = 0.25\nhead_angle = 2.5\n[lipsync]\nmode = \"sound\"").unwrap();
+        overlay(&mut base, toml::from_str("[idle]\nhead_angle = 15.0").unwrap());
+        assert_eq!(base["idle"]["breath_rate"].as_float(), Some(0.25));
+        assert_eq!(base["idle"]["head_angle"].as_float(), Some(15.0));
+        assert_eq!(base["lipsync"]["mode"].as_str(), Some("sound"));
+    }
+
+    #[test]
+    fn the_defaults_parse() {
+        let config: Config = toml::from_str(include_str!("../riggy.toml")).unwrap();
+        assert_eq!(config.avatar.name, "cyborg_girl");
+    }
 }

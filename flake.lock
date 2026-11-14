@@ -16,9 +16,30 @@
         "type": "github"
       }
     },
+    "qwentts-nix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794222562,
+        "narHash": "sha256-mLwJFX0gbCRH7RtQosiWur1T2ZlpAk13ajSGRUZxn1A=",
+        "owner": "Santuzius",
+        "repo": "qwentts-nix",
+        "rev": "f86ec7e0157851fbb6000504bdfbb255ca6cabc7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Santuzius",
+        "repo": "qwentts-nix",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "qwentts-nix": "qwentts-nix"
       }
     }
   },

@@ -1,0 +1,146 @@
+//! Where riggy keeps its files, as Linux programs usually do:
+//!
+//! - `~/.config/riggy/` (`$XDG_CONFIG_HOME/riggy`): `riggy.toml` with the user's settings, only what differs from the defaults; the tray's `settings.toml`; and the file `speech-off` while speech is switched off.
+//! - `~/.local/share/riggy/` (`$XDG_DATA_HOME/riggy`): the models, `models/NAME.glb`, which are not part of riggy, and their mapping files, `avatars/NAME.toml`, copied from riggy's default the first time a model is used.
+//! - The defaults that come with riggy: `riggy.toml` and `assets/avatars/` in `$RIGGY_DATA_DIR` (the package's `share/riggy`; the dev shell points it at the checkout), built into the program as well.
+
+use std::io;
+use std::path::{Path, PathBuf};
+
+/// The default settings, also built in for a riggy that runs without its data folder.
+const DEFAULT_CONFIG: &str = include_str!("../riggy.toml");
+/// Default mapping files built in, by model name.
+const DEFAULT_MAPPINGS: [(&str, &str); 1] = [("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml"))];
+
+/// What a fresh user config holds: nothing but a pointer to the defaults.
+const USER_CONFIG_TEMPLATE: &str = "# Your riggy settings. Everything not set here comes from the defaults: riggy.toml in riggy's data folder (share/riggy in the package). Copy a setting from there to change it, e.g.\n#\n# [lipsync]\n# mode = \"text\"\n";
+
+pub fn home() -> PathBuf {
+    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
+}
+
+fn xdg_dir(variable: &str, fallback: &str) -> PathBuf {
+    std::env::var_os(variable).map(PathBuf::from).filter(|dir| dir.is_absolute()).unwrap_or_else(|| home().join(fallback))
+}
+
+/// `$XDG_CONFIG_HOME/riggy`, by default `~/.config/riggy`.
+pub fn config_dir() -> PathBuf {
+    xdg_dir("XDG_CONFIG_HOME", ".config").join("riggy")
+}
+
+/// `$XDG_DATA_HOME/riggy`, by default `~/.local/share/riggy`.
+pub fn data_dir() -> PathBuf {
+    xdg_dir("XDG_DATA_HOME", ".local/share").join("riggy")
+}
+
+/// The folder with riggy's own defaults, if it is known.
+fn defaults_dir() -> Option<PathBuf> {
+    std::env::var_os("RIGGY_DATA_DIR").map(PathBuf::from)
+}
+
+/// The user's settings: `$RIGGY_CONFIG`, by default `~/.config/riggy/riggy.toml`.
+pub fn user_config() -> PathBuf {
+    std::env::var_os("RIGGY_CONFIG").map(PathBuf::from).unwrap_or_else(|| config_dir().join("riggy.toml"))
+}
+
+/// The defaults file in the data folder, if there is one; riggy watches it for changes, so the defaults can be tuned in the checkout.
+pub fn default_config_file() -> Option<PathBuf> {
+    defaults_dir().map(|dir| dir.join("riggy.toml")).filter(|file| file.exists())
+}
+
+/// The text of the default settings.
+pub fn default_config() -> String {
+    default_config_file().and_then(|file| std::fs::read_to_string(file).ok()).unwrap_or_else(|| DEFAULT_CONFIG.into())
+}
+
+/// The model file of `name`.
+pub fn model(name: &str) -> PathBuf {
+    data_dir().join("models").join(format!("{name}.glb"))
+}
+
+/// The user's mapping file of `name`.
+pub fn mapping(name: &str) -> PathBuf {
+    data_dir().join("avatars").join(format!("{name}.toml"))
+}
+
+/// riggy's default mapping file of `name`, if it has one.
+fn default_mapping(name: &str) -> Option<String> {
+    let file = defaults_dir().map(|dir| dir.join("assets/avatars").join(format!("{name}.toml")));
+    file.and_then(|file| std::fs::read_to_string(file).ok())
+        .or_else(|| DEFAULT_MAPPINGS.iter().find(|(known, _)| *known == name).map(|(_, text)| (*text).into()))
+}
+
+/// Creates the user's config and the mapping file of `name` from the defaults where they are missing.
+pub fn ensure_user_files(name: &str) -> io::Result<()> {
+    write_new(&user_config(), USER_CONFIG_TEMPLATE)?;
+    if let Some(text) = default_mapping(name) {
+        write_new(&mapping(name), &text)?;
+    }
+    Ok(())
+}
+
+/// Puts the user's config, every mapping file riggy has a default for, and the tray's choices back to the defaults. The replaced files are kept as `*.old` next to them.
+pub fn reset_to_defaults() -> io::Result<()> {
+    let mut files = vec![(user_config(), USER_CONFIG_TEMPLATE.to_string()), (config_dir().join("settings.toml"), String::new())];
+    let avatars = data_dir().join("avatars");
+    for entry in std::fs::read_dir(&avatars).into_iter().flatten().flatten() {
+        let path = entry.path();
+        let name = path.file_stem().and_then(|s| s.to_str()).filter(|_| path.extension().is_some_and(|e| e == "toml"));
+        if let Some(text) = name.and_then(default_mapping) {
+            files.push((path, text));
+        }
+    }
+    for (file, text) in files {
+        if file.exists() {
+            std::fs::rename(&file, old(&file))?;
+        }
+        if !text.is_empty() {
+            write_new(&file, &text)?;
+        }
+    }
+    Ok(())
+}
+
+fn old(file: &Path) -> PathBuf {
+    let mut name = file.file_name().unwrap_or_default().to_os_string();
+    name.push(".old");
+    file.with_file_name(name)
+}
+
+fn write_new(file: &Path, text: &str) -> io::Result<()> {
+    if file.exists() {
+        return Ok(());
+    }
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    std::fs::write(file, text)
+}
+
+/// `path` with `~/` expanded, and a relative one taken from the user's config folder.
+pub fn resolve(path: &Path) -> PathBuf {
+    let path = match path.strip_prefix("~") {
+        Ok(rest) => home().join(rest),
+        Err(_) => path.to_path_buf(),
+    };
+    if path.is_absolute() { path } else { config_dir().join(path) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn built_in_defaults_parse() {
+        let _: toml::Table = toml::from_str(DEFAULT_CONFIG).unwrap();
+        let _: toml::Table = toml::from_str(USER_CONFIG_TEMPLATE).unwrap();
+        for (_, mapping) in DEFAULT_MAPPINGS {
+            let _: toml::Table = toml::from_str(mapping).unwrap();
+        }
+    }
+
+    #[test]
+    fn old_copies_sit_next_to_the_file() {
+        assert_eq!(old(Path::new("/c/riggy/riggy.toml")), Path::new("/c/riggy/riggy.toml.old"));
+    }
+}

@@ -1,9 +1,6 @@
-# riggy settings; changes to [idle], [blink], [mouth], [lipsync] and [debug] apply while running.
-
-[avatar]
-kind = "glb"
-path = "assets/models/cyborg_girl.glb"
-mapping = "assets/avatars/cyborg_girl.toml"
+# riggy's default settings. Your own go in ~/.config/riggy/riggy.toml, which needs only what differs from here; changes to [idle], [blink], [mouth], [lipsync] and [debug] apply while running.
+#
+# [avatar] name picks the model: ~/.local/share/riggy/models/NAME.glb, with its mapping file ~/.local/share/riggy/avatars/NAME.toml (created from riggy's default on first use). path and mapping name other files instead.
 
 # Window: size in logical pixels; transparent = borderless with a see-through background; always_on_top works on X11 only (on Wayland the KWin script in kwin/riggy does it, see the README); click_through lets clicks go to the windows underneath (F2 toggles it; while it is off, dragging with the left mouse button moves the window).
 [window]
@@ -16,12 +13,12 @@ click_through = false
 # Idle motion; angles in degrees, rates in Hz.
 [idle]
 breath_rate = 0.25
-breath_angle = 1.0
-sway_rate = 0.07
-sway_shift = 0.004   # sideways hip shift as a fraction of body height
-sway_angle = 1.2
+breath_angle = 6.0
+sway_rate = 0.25
+sway_shift = 0.03
+sway_angle = 6.0
 head_rate = 0.15
-head_angle = 2.5
+head_angle = 15.0
 arm_angle = 12.0     # upper arms out from vertical
 elbow_angle = 8.0
 
