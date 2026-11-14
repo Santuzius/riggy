@@ -6,7 +6,7 @@
 //!
 //! `--frames` prints every 10 ms window; otherwise one summary line per file with the median measures of the windows above the silence level and the mean weight of each mouth shape.
 
-#[path = "../src/lipsync.rs"]
+#[path = "../src/lipsync/sound.rs"]
 #[allow(dead_code)]
 mod lipsync;
 

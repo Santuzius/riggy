@@ -1,10 +1,7 @@
-//! Lip sync from Rhubarb Lip Sync: mouth shapes with timings, recognised from the speech itself.
+//! The `rhubarb` lip-sync mode: mouth shapes with timings from the Rhubarb Lip Sync program, recognised from the speech itself.
 //!
-//! Rhubarb needs finished audio, while the TTS streams it. A worker thread per utterance therefore cuts the arriving audio at pauses (at least 1 s, at most 4 s per piece), runs `rhubarb` on each piece and adds the resulting cues to the utterance. Playback starts once the first piece has its cues, so speech starts later than in the sound-driven mode (`lipsync`). Where cues are missing (Rhubarb failed or fell behind), the sound-driven lip sync takes over.
-//!
-//! Rhubarb's mouth shapes (from its README, https://github.com/DanielSWolf/rhubarb-lip-sync): A closed (m, b, p), B slightly open with clenched teeth (most consonants, "ee"), C open ("eh"), D wide open ("aa"), E slightly rounded ("aw", "er"), F puckered ("oo", "w"), G upper teeth on the lower lip (f, v), H tongue raised (l), X at rest.
+//! Rhubarb needs finished audio, while the TTS streams it. A worker thread per utterance therefore cuts the arriving audio at pauses (at least 1 s, at most 4 s per piece), runs `rhubarb` on each piece and adds the resulting cues to the utterance. Playback starts once the first piece has its cues, so speech starts later than in the sound-driven mode. Where cues are missing (Rhubarb failed or fell behind), the sound-driven lip sync takes over.
 
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -13,59 +10,8 @@ use std::time::Duration;
 use bevy::log::{info, warn};
 use serde::Deserialize;
 
+use super::{Cue, QUIET_LEVEL, Shape};
 use crate::audio::Shared;
-use crate::avatar::ExpressionPreset;
-
-/// A Rhubarb mouth shape.
-#[derive(Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum MouthCue {
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    X,
-}
-
-impl MouthCue {
-    /// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh); `overrides` (`[lipsync.cues]`) replaces a shape's defaults, e.g. `B = { ee = 0.9 }`.
-    pub fn visemes(self, overrides: &HashMap<MouthCue, HashMap<String, f32>>) -> [f32; 5] {
-        let Some(weights) = overrides.get(&self) else { return self.default_visemes() };
-        let mut out = [0.0; 5];
-        for (name, &w) in weights {
-            match ExpressionPreset::VISEMES.iter().position(|v| v.as_str() == name) {
-                Some(i) => out[i] = w,
-                None => warn!("[lipsync.cues] {self:?}: {name} is not a mouth shape (aa, ih, ou, ee, oh)"),
-            }
-        }
-        out
-    }
-
-    fn default_visemes(self) -> [f32; 5] {
-        match self {
-            Self::A | Self::X => [0.0; 5],
-            // Rhubarb uses B for the long "ee" as well as most consonants: spread lips, teeth showing.
-            Self::B => [0.0, 0.0, 0.0, 0.85, 0.0],
-            Self::C => [0.3, 0.4, 0.0, 0.0, 0.0],
-            Self::D => [0.9, 0.0, 0.0, 0.0, 0.0],
-            Self::E => [0.0, 0.0, 0.0, 0.0, 0.7],
-            Self::F => [0.0, 0.0, 0.9, 0.0, 0.0],
-            // No shape for the lower lip under the teeth yet; a narrow opening comes closest.
-            Self::G => [0.0, 0.0, 0.0, 0.25, 0.0],
-            Self::H => [0.25, 0.25, 0.0, 0.0, 0.0],
-        }
-    }
-}
-
-/// A mouth shape from `start` (sample index in the utterance) until the next cue.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Cue {
-    pub start: usize,
-    pub shape: MouthCue,
-}
 
 /// How to run Rhubarb.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,7 +25,6 @@ const MIN_PIECE_SECONDS: f32 = 1.0;
 const MAX_PIECE_SECONDS: f32 = 4.0;
 /// A pause to cut at: this long below `QUIET_LEVEL`.
 const PAUSE_SECONDS: f32 = 0.12;
-const QUIET_LEVEL: f32 = 0.01;
 const POLL: Duration = Duration::from_millis(40);
 
 /// Length of the next piece to analyse, cut in the middle of the first pause after `MIN_PIECE_SECONDS`, or at the quietest 10 ms before `MAX_PIECE_SECONDS`; `None` while more audio is needed.
@@ -137,8 +82,8 @@ fn work(shared: &Shared, id: u64, settings: &Settings) {
         let Some(u) = queue.iter_mut().find(|u| u.id == id) else { return };
         match result {
             Ok(cues) => {
-                u.cues.extend(cues.into_iter().map(|c| Cue { start: piece_start + c.start, ..c }));
-                u.cued_until = piece_start + length;
+                let cues: Vec<Cue> = cues.into_iter().map(|c| Cue { start: piece_start + c.start, ..c }).collect();
+                u.set_cues_from(piece_start, &cues, piece_start + length);
             }
             Err(err) => {
                 warn!("rhubarb failed, falling back to sound-driven lip sync: {err}");
@@ -159,7 +104,7 @@ struct Output {
 #[derive(Deserialize)]
 struct OutputCue {
     start: f32,
-    value: MouthCue,
+    value: Shape,
 }
 
 /// Runs Rhubarb on one piece; cue starts are sample indices within the piece.
@@ -202,15 +147,6 @@ fn wav_bytes(samples: &[f32], rate: u32) -> Vec<u8> {
     bytes
 }
 
-/// The cue in force at sample `position`, if cues reach that far.
-pub fn cue_at(cues: &[Cue], cued_until: usize, position: usize) -> Option<MouthCue> {
-    if position >= cued_until {
-        return None;
-    }
-    let i = cues.partition_point(|c| c.start <= position);
-    Some(if i == 0 { MouthCue::X } else { cues[i - 1].shape })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,22 +174,6 @@ mod tests {
         assert_eq!(next_cut(&speech(2.0), RATE, false), None);
         assert_eq!(next_cut(&speech(2.0), RATE, true), Some(2000));
         assert!(next_cut(&speech(4.5), RATE, false).is_some_and(|c| (1000..4000).contains(&c)));
-    }
-
-    #[test]
-    fn finds_the_cue_in_force() {
-        let cues = [Cue { start: 0, shape: MouthCue::X }, Cue { start: 100, shape: MouthCue::A }, Cue { start: 250, shape: MouthCue::D }];
-        assert_eq!(cue_at(&cues, 400, 99), Some(MouthCue::X));
-        assert_eq!(cue_at(&cues, 400, 100), Some(MouthCue::A));
-        assert_eq!(cue_at(&cues, 400, 399), Some(MouthCue::D));
-        assert_eq!(cue_at(&cues, 400, 400), None);
-    }
-
-    #[test]
-    fn config_overrides_a_shape() {
-        let config: crate::config::Config = toml::from_str("[lipsync.cues]\nB = { ee = 0.9, ih = 0.1 }").unwrap();
-        assert_eq!(MouthCue::B.visemes(&config.lipsync.cues), [0.0, 0.1, 0.0, 0.9, 0.0]);
-        assert_eq!(MouthCue::D.visemes(&config.lipsync.cues), MouthCue::D.default_visemes());
     }
 
     #[test]

@@ -29,6 +29,8 @@ pub enum LipsyncMode {
     Sound,
     /// From Rhubarb Lip Sync's mouth shapes; speech starts about 1–2 s later.
     Rhubarb,
+    /// From the spoken text, timed to the audio, with Rhubarb's mouth shapes; speech starts about 0.3 s later.
+    Text,
 }
 
 /// Which lip sync drives the mouth; applies to the next utterance (F3 toggles the mode while running).
@@ -45,7 +47,7 @@ pub struct LipsyncConfig {
     /// Time constant in seconds with which the cheeks follow Rhubarb's spread shapes.
     pub cue_cheek_time: f32,
     /// Mouth shape weights per Rhubarb shape, replacing the built-in ones, e.g. `B = { ee = 0.9 }`.
-    pub cues: std::collections::HashMap<crate::rhubarb::MouthCue, std::collections::HashMap<String, f32>>,
+    pub cues: std::collections::HashMap<crate::lipsync::Shape, std::collections::HashMap<String, f32>>,
 }
 
 impl Default for LipsyncConfig {

@@ -39,7 +39,7 @@ silence_level = 0.01
 loud_level = 0.12
 audio_latency = 0.0
 
-# Lip sync: "sound" follows loudness and spectrum and speaks at once; "rhubarb" uses Rhubarb Lip Sync's mouth shapes (closed lips on m, b, p) and starts speaking about 2 s later. F3 switches while running; changes apply to the next utterance. recognizer: "phonetic" (any language) or "pocketSphinx" (English only, slower than real time). cue_time: seconds the mouth takes to follow a Rhubarb shape; cue_cheek_time: the same for the cheeks.
+# Lip sync: "sound" follows loudness and spectrum and speaks at once; "rhubarb" uses Rhubarb Lip Sync's mouth shapes (closed lips on m, b, p) and starts speaking about 2 s later; "text" takes the sounds from the spoken text (any eSpeak NG language, e.g. German umlauts), times them to the audio and animates them with Rhubarb's rules, starting about 0.3 s later. F3 cycles through them while running; changes apply to the next utterance. recognizer: "phonetic" (any language) or "pocketSphinx" (English only, slower than real time). cue_time: seconds the mouth takes to follow a Rhubarb shape; cue_cheek_time: the same for the cheeks.
 [lipsync]
 mode = "sound"
 rhubarb = "rhubarb"
@@ -47,7 +47,7 @@ recognizer = "phonetic"
 cue_time = 0.05
 cue_cheek_time = 0.12   # cheeks follow Rhubarb's "ee"/"ih" shapes this slowly
 
-# Mouth shapes per Rhubarb shape, replacing the built-in table in src/rhubarb.rs (applies live). Rhubarb's shapes: A closed (m, b, p), B teeth together, lips apart (most consonants, "ee"), C open ("eh"), D wide open ("aa"), E slightly rounded, F puckered ("oo", "w"), G f/v, H l, X rest.
+# Mouth shapes per Rhubarb shape (modes rhubarb and text), replacing the built-in table in src/lipsync/cues.rs (applies live). Rhubarb's shapes: A closed (m, b, p), B teeth together, lips apart (most consonants, "ee"), C open ("eh"), D wide open ("aa"), E slightly rounded, F puckered ("oo", "w"), G f/v, H l, X rest.
 [lipsync.cues]
 # B = { ee = 0.85 }
 

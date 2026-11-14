@@ -19,9 +19,8 @@ use serde::Deserialize;
 use crate::audio::{self, Shared, Utterance};
 use crate::avatar::AvatarSet;
 use crate::config::{Config, LipsyncConfig, LipsyncMode};
-use crate::lipsync;
+use crate::lipsync::{CueSource, Request, sound};
 use crate::mouth::MouthTarget;
-use crate::rhubarb;
 
 pub struct SpeechPlugin;
 
@@ -61,7 +60,7 @@ impl Default for Header {
     }
 }
 
-/// Applies `[lipsync]` from the config when it changes; F3 switches between the sound-driven and the Rhubarb mode until the next change.
+/// Applies `[lipsync]` from the config when it changes; F3 cycles through the modes of this build until the next change.
 fn lipsync_mode(feed: Res<Feed>, config: Res<Config>, keys: Res<ButtonInput<KeyCode>>, mut applied: Local<Option<LipsyncConfig>>, mut mode: Local<LipsyncMode>) {
     let mut changed = false;
     if applied.as_ref() != Some(&config.lipsync) {
@@ -70,17 +69,15 @@ fn lipsync_mode(feed: Res<Feed>, config: Res<Config>, keys: Res<ButtonInput<KeyC
         changed = true;
     }
     if keys.just_pressed(KeyCode::F3) {
-        *mode = match *mode {
-            LipsyncMode::Sound => LipsyncMode::Rhubarb,
-            LipsyncMode::Rhubarb => LipsyncMode::Sound,
-        };
+        let modes = CueSource::available_modes();
+        let next = modes.iter().position(|m| m == &*mode).map_or(0, |i| (i + 1) % modes.len());
+        *mode = modes[next];
         changed = true;
     }
     if !changed {
         return;
     }
-    let settings = (*mode == LipsyncMode::Rhubarb).then(|| rhubarb::Settings { program: config.lipsync.rhubarb.clone(), recognizer: config.lipsync.recognizer.clone() });
-    *feed.0.rhubarb.lock().unwrap() = settings;
+    *feed.0.cue_source.lock().unwrap() = CueSource::new(*mode, &config.lipsync);
     info!("lip sync for the next utterance: {:?}", *mode);
 }
 
@@ -108,7 +105,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
     let now = Instant::now();
     let heard = now.checked_sub(Duration::from_secs_f32(config.mouth.audio_latency.max(0.0))).unwrap_or(now);
     let mouth = &config.mouth;
-    let k = 1.0 - (-lipsync::HOP_SECONDS / mouth.shape_time.max(1e-3)).exp();
+    let k = 1.0 - (-sound::HOP_SECONDS / mouth.shape_time.max(1e-3)).exp();
 
     let was_speaking = voice.speaking;
     let mut received = false;
@@ -128,10 +125,10 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
                 continue;
             }
             target.cued = false;
-            let open = lipsync::opening(&frame.measure, mouth.silence_level, mouth.loud_level);
+            let open = sound::opening(&frame.measure, mouth.silence_level, mouth.loud_level);
             let open = if open > 0.0 {
                 state.quiet_since = None;
-                let fresh = lipsync::shape(&frame.measure);
+                let fresh = sound::shape(&frame.measure);
                 let first = state.shape.iter().sum::<f32>() == 0.0;
                 for (w, f) in state.shape.iter_mut().zip(fresh) {
                     *w = if first { f } else { *w + (f - *w) * k * open };
@@ -153,7 +150,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
     }
     if was_speaking && !voice.speaking {
         *target = MouthTarget::default();
-        info!("speech ended; Rhubarb cues drove {} % of it", 100 * state.cued_frames / state.frames.max(1));
+        info!("speech ended; cues drove {} % of it", 100 * state.cued_frames / state.frames.max(1));
         *state = LipState { last: state.last, ..default() };
     }
     if !was_speaking && voice.speaking {
@@ -202,11 +199,9 @@ fn receive(stream: UnixStream, shared: &Arc<Shared>) -> io::Result<()> {
 
     static NEXT_ID: AtomicU64 = AtomicU64::new(0);
     let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-    let settings = shared.rhubarb.lock().unwrap().clone();
-    shared.queue.lock().unwrap().push_back(Utterance::new(id, header.rate, settings.is_some()));
-    if let Some(settings) = settings {
-        rhubarb::start(shared.clone(), id, settings);
-    }
+    let source = shared.cue_source.lock().unwrap().clone();
+    shared.queue.lock().unwrap().push_back(Utterance::new(id, header.rate, source.wants_cues()));
+    source.start(shared, id, &Request { text: header.text, language: header.language });
     let result = read_pcm(&mut reader, shared);
     if let Some(utterance) = shared.queue.lock().unwrap().back_mut() {
         utterance.finished = true;

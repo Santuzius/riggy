@@ -7,7 +7,6 @@ mod config;
 mod idle;
 mod lipsync;
 mod mouth;
-mod rhubarb;
 mod speech;
 mod view;
 

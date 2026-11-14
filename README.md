@@ -9,7 +9,17 @@ nix develop        # or `direnv allow` once
 cargo run
 ```
 
-The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries (Vulkan, Wayland, X11, ALSA, udev).
+The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries (Vulkan, Wayland, X11, ALSA, udev) and the tools of the lip-sync modes (Rhubarb Lip Sync, eSpeak NG).
+
+The flake also builds riggy as a package; run it from the checkout, where `riggy.toml` and `assets/` are:
+
+| Package | Cargo features | Lip-sync modes | License of the binary |
+|---|---|---|---|
+| `nix run .` | `rhubarb`, `espeak` | sound, rhubarb, text | GPL-3.0-or-later |
+| `nix run .#riggy-mit` | `rhubarb` | sound, rhubarb | MIT |
+| `nix run .#riggy-minimal` | none | sound | MIT |
+
+riggy's source is MIT-licensed. The `espeak` feature links libespeak-ng, which is GPL-3.0-or-later, so a binary built with it is GPL-3.0-or-later as a whole. `src/lipsync/rhubarb_animation/` is a port of Rhubarb Lip Sync's animation rules under their MIT license (`LICENSE` in that folder).
 
 ## Model
 
@@ -34,10 +44,11 @@ Later connections wait until the earlier ones have been read. To try it with the
 nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
 ```
 
-Two lip-sync modes, chosen with `[lipsync] mode` in `riggy.toml` or switched with F3 while running:
+Three lip-sync modes, chosen with `[lipsync] mode` in `riggy.toml` or cycled with F3 while running:
 
 - `sound` (default): the mouth follows the sound itself. Loudness sets how far it opens, and the balance of low and high frequencies chooses between the five mouth shapes. Speech starts at once. `[mouth]` sets the loudness range, the smoothing and an extra delay of the mouth behind the sound.
 - `rhubarb`: [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) recognises the sounds and returns mouth shapes with timings, including closed lips for m, b and p. riggy cuts the arriving speech at pauses and analyses each piece (about 1 s per piece), so speech starts about 2 s later. The Nix shell provides `rhubarb`; the flake packages its Linux release.
+- `text`: the mouth shapes come from the text in the socket header. [eSpeak NG](https://github.com/espeak-ng/espeak-ng) speaks the text itself, which gives its phonemes in any of its languages, including the German umlauts. riggy matches that synthetic speech to the real one while it arrives (dynamic time warping of MFCCs, as the forced aligner [aeneas](https://github.com/readbeyond/aeneas) does), which times each phoneme, and turns the timed phonemes into mouth shapes with Rhubarb's animation rules. Speech starts about 0.3 s later.
 
 ## Development
 

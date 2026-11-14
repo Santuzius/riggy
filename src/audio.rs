@@ -10,27 +10,31 @@ use bevy::log::{info, warn};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
 
-use crate::lipsync::{Analyzer, Measure};
-use crate::rhubarb::{self, Cue, MouthCue};
+use crate::lipsync::sound::{Analyzer, Measure};
+use crate::lipsync::{Cue, CueSource, Shape, cue_at};
 
 /// Audio that waits before playback starts, so a slow TTS stream does not stutter.
 const PREBUFFER_SECONDS: f32 = 0.2;
+/// Cues that must exist before playback starts, when cues are wanted, so the mouth does not fall back to sound-driven lip sync right away.
+const CUE_LEAD_SECONDS: f32 = 0.2;
 /// Measures kept for the lip-sync system (2 s at 10 ms hops).
 const MAX_FRAMES: usize = 200;
 
 /// One spoken text as mono samples, filled while it arrives.
 pub struct Utterance {
+    /// Cue sources find their utterance by it.
+    #[cfg_attr(not(any(feature = "rhubarb", feature = "espeak")), allow(dead_code))]
     pub id: u64,
     pub rate: u32,
     pub samples: Vec<f32>,
     /// All samples have arrived.
     pub finished: bool,
     started: bool,
-    /// Playback waits for Rhubarb's first cues.
+    /// Playback waits for the first cues.
     pub wants_cues: bool,
-    /// Rhubarb mouth shapes, sorted by start.
+    /// Mouth shapes, sorted by start.
     pub cues: Vec<Cue>,
-    /// Samples analysed by Rhubarb so far.
+    /// Samples the cues cover so far.
     pub cued_until: usize,
     pub cue_failed: bool,
 }
@@ -50,10 +54,19 @@ impl Utterance {
         }
     }
 
-    /// Ready to play: enough audio is buffered and, when cues are wanted, the first piece has them (or Rhubarb gave up).
+    #[cfg_attr(not(any(feature = "rhubarb", feature = "espeak")), allow(dead_code))]
+    /// Replaces the cues from sample `from` on with `cues` (sorted, all starting at or after `from`), which cover the audio up to `until`.
+    pub fn set_cues_from(&mut self, from: usize, cues: &[Cue], until: usize) {
+        self.cues.truncate(self.cues.partition_point(|c| c.start < from));
+        self.cues.extend_from_slice(cues);
+        self.cued_until = until;
+    }
+
+    /// Ready to play: enough audio is buffered and, when cues are wanted, the cues lead by `CUE_LEAD_SECONDS` or cover everything (or their source gave up).
     fn ready(&self) -> bool {
         let buffered = self.finished || self.samples.len() as f32 >= self.rate as f32 * PREBUFFER_SECONDS;
-        let cued = !self.wants_cues || self.cue_failed || self.cued_until > 0 || (self.finished && self.samples.is_empty());
+        let lead = (self.rate as f32 * CUE_LEAD_SECONDS) as usize;
+        let cued = !self.wants_cues || self.cue_failed || self.cued_until >= lead.min(self.samples.len()) && (self.cued_until > 0 || self.finished);
         buffered && cued
     }
 }
@@ -65,8 +78,8 @@ pub struct Frame {
     pub measure: Measure,
     /// An utterance was playing (or stalled waiting for data) in this window.
     pub active: bool,
-    /// Rhubarb's mouth shape at the window's centre, where cues exist.
-    pub cue: Option<MouthCue>,
+    /// The cued mouth shape at the window's centre, where cues exist.
+    pub cue: Option<Shape>,
 }
 
 /// State shared by the socket thread (fills `queue`), the audio thread and the lip-sync system (reads `frames`).
@@ -74,8 +87,8 @@ pub struct Frame {
 pub struct Shared {
     pub queue: Mutex<VecDeque<Utterance>>,
     pub frames: Mutex<VecDeque<Frame>>,
-    /// Lip sync for new utterances: Rhubarb with these settings, or sound-driven only (`None`).
-    pub rhubarb: Mutex<Option<rhubarb::Settings>>,
+    /// Where the mouth shapes of new utterances come from.
+    pub cue_source: Mutex<CueSource>,
 }
 
 /// Opens the default output device on its own thread, which keeps the stream alive for the program's lifetime.
@@ -113,7 +126,7 @@ fn build<T: SizedSample + FromSample<f32>>(device: &cpal::Device, config: Stream
     let mut player = Player::default();
     let mut analyzer = Analyzer::new(rate);
     let half_window = analyzer.window_seconds() / 2.0;
-    let mut measures: Vec<(usize, Measure, bool, Option<MouthCue>)> = Vec::with_capacity(64);
+    let mut measures: Vec<(usize, Measure, bool, Option<Shape>)> = Vec::with_capacity(64);
 
     let callback = move |data: &mut [T], info: &OutputCallbackInfo| {
         let timestamp = info.timestamp();
@@ -178,11 +191,11 @@ impl Player {
         (0.0, false)
     }
 
-    /// Rhubarb's mouth shape `back` seconds before the current read position in the front utterance.
-    fn cue(&self, queue: &VecDeque<Utterance>, back: f32) -> Option<MouthCue> {
+    /// The cued mouth shape `back` seconds before the current read position in the front utterance.
+    fn cue(&self, queue: &VecDeque<Utterance>, back: f32) -> Option<Shape> {
         let utterance = queue.front().filter(|u| u.started)?;
         let position = self.position - (back * utterance.rate as f32) as f64;
-        (position >= 0.0).then(|| rhubarb::cue_at(&utterance.cues, utterance.cued_until, position as usize)).flatten()
+        (position >= 0.0).then(|| cue_at(&utterance.cues, utterance.cued_until, position as usize)).flatten()
     }
 }
 
@@ -214,6 +227,8 @@ mod tests {
         queue[0].samples = vec![0.3; 24_000];
         let mut player = Player::default();
         assert_eq!(player.next(&mut queue, 24_000), (0.0, false));
+        queue[0].cued_until = 2_400;
+        assert_eq!(player.next(&mut queue, 24_000), (0.0, false), "cues must lead by 0.2 s");
         queue[0].cued_until = 12_000;
         assert_eq!(player.next(&mut queue, 24_000), (0.3, true));
     }

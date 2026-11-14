@@ -24,7 +24,7 @@ So poses, mouth shapes and props can be tuned in the editor while the window sho
 | Mouse wheel | zoom between the full figure and the face |
 | `1`–`5` | hold one mouth shape: `aa`, `ih`, `ou`, `ee`, `oh` |
 | `0` | mouth back to rest |
-| `F3` | switch lip sync between `sound` and `rhubarb` (next utterance) |
+| `F3` | cycle lip sync through `sound`, `rhubarb` and `text` (next utterance) |
 | `F1` | print the model's node tree with avatar-space joint positions to the log |
 
 - `RIGGY_DUMP_NODES=1` prints the same node tree once right after loading, without a key press. Positions are in model units (mm for the cyborg girl) in avatar space: +Y up, +Z the way the figure faces, +X its left. Use them to choose pivots and translation directions for the mapping file.
@@ -58,11 +58,17 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 
 - `examples/say.rs` sends speech to the socket: a text through Qwen3-TTS, or with `--file` a raw PCM file (24 kHz s16le mono, the server's `pcm` format). `RIGGY_SOCKET` sets the socket.
 - A PCM file for repeatable tests: `curl -s -X POST http://127.0.0.1:8902/v1/audio/speech -H 'Content-Type: application/json' -d '{"voice":"serena","input":"See. Me. Tea.","language":"English","response_format":"pcm","seed":2}' -o temp/ee.pcm`
-- `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync.rs` come from such runs over one test word list per vowel.
+- `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync/sound.rs` come from such runs over one test word list per vowel.
 - `[mouth]` tunes the motion live: `time_constant` and `release_time` set how fast the mouth opens and closes, `shape_time` how fast it changes from one shape to another (quiet syllables change it less), `cheek_time` how slowly the cheeks follow the spread shapes, `pause_opening` and `pause_hold` how far it stays open in short pauses between words and for how long.
-- `[lipsync] cue_time` and `cue_cheek_time` set how fast mouth and cheeks follow Rhubarb's shapes; `[mouth] cheek_time` applies in sound mode only.
+- `[lipsync] cue_time` and `cue_cheek_time` set how fast mouth and cheeks follow Rhubarb's shapes (modes `rhubarb` and `text`); `[mouth] cheek_time` applies in sound mode only.
 - `[lipsync.cues]` in `riggy.toml` replaces the mouth shape for any Rhubarb shape while riggy runs, e.g. `B = { ee = 0.85 }`.
-- F3 switches between the `sound` and `rhubarb` lip-sync modes for the next utterance; the log confirms the mode. In `rhubarb` mode the log shows the analysis time per piece, and at the end of speech how much of it Rhubarb's cues drove (the rest fell back to the sound-driven mode).
+- F3 cycles through the lip-sync modes of the build for the next utterance; the log confirms the mode. In `rhubarb` mode the log shows the analysis time per piece; at the end of speech the log shows how much of it cues drove (the rest fell back to the sound-driven mode).
+- The text mode's alignment can be inspected without riggy running: an ignored test prints eSpeak NG's phonemes, the voiced frames of both speeches, the timed phones and the mouth shapes for a recording, e.g.
+  ```bash
+  RIGGY_PCM=$PWD/temp/speech.pcm RIGGY_TEXT="Schöne Grüße aus Köln." RIGGY_LANGUAGE=German cargo test prints_the_alignment -- --ignored --nocapture
+  ```
+  Its constants are in `src/lipsync/text/` (`LOOKAHEAD`, `MIN_PAUSE`, eSpeak NG's `RATE`, the cost weights in `align.rs`). IPA symbols without a mouth shape are logged as a warning; add them to `src/lipsync/text/ipa.rs`.
+- Cargo features: `rhubarb` (the Rhubarb mode) and `espeak` (the text mode, links libespeak-ng) are on by default; `cargo check --no-default-features` checks the build without them.
 - `nix build .#rhubarb` builds the packaged Rhubarb alone, e.g. to try it on a WAV file: `rhubarb -r phonetic -f json speech.wav`.
 - The log shows `speech started` and `speech ended` from the lip-sync clock, and `audio output: … Hz` once the sound device is open.
 
