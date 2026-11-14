@@ -29,7 +29,7 @@ use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
 use super::clothing::{ClothingSpec, spawn_clothing};
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, SOURCE, TransformTree, avatar_space, model_asset_path, pose_bone};
+use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, SOURCE, TransformTree, avatar_space, model_asset_path, pose_bone};
 use crate::config::{AvatarKind, Config};
 
 #[derive(Deserialize, Debug, Clone)]
@@ -291,7 +291,7 @@ fn resolve_avatar(
     spawn_clothing(&mapping.clothing, &model, mapping.scale, root, &mut commands, &asset_server);
 
     let mut avatar = commands.entity(root);
-    avatar.insert((rig, parts));
+    avatar.insert((rig, parts, AvatarReady));
     match mapping.machine {
         Some(machine) => {
             avatar.insert(machine);

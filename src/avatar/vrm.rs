@@ -1,13 +1,16 @@
 //! `vrm` backend: a VRM 1.0 model loaded by bevy_vrm1, which takes the humanoid bones and the expressions from the file itself, and moves the spring bones (hair, cloth) by itself.
 //!
+//! MToon shades by the direction of each directional light and ignores its strength, so a VRM avatar is lit by one key light (`view`). bevy_vrm1 draws no outline on a double-sided material (most of a VRoid model), so the outlined ones are made single-sided; the inside of a skirt then shows in the outline colour, as in VRoid Hub's viewer.
+//!
 //! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; one next to it may set `window_height`.
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use bevy_vrm1::prelude::{Initialized, SetExpressions, VrmBone, VrmExpression, VrmHandle, VrmPlugin};
+use bevy::render::render_resource::Face;
+use bevy_vrm1::prelude::{Initialized, MToonMaterial, OutlineWidthMode, SetExpressions, VrmBone, VrmExpression, VrmHandle, VrmPlugin};
 
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
+use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
 use crate::config::{AvatarKind, Config};
 
 /// Backend state on the avatar root.
@@ -39,8 +42,17 @@ fn spawn_avatar(mut commands: Commands, config: Res<Config>, asset_server: Res<A
 }
 
 /// Builds the [`Humanoid`] from the bones bevy_vrm1 marked, once the model is attached.
-fn resolve_avatar(ready: On<Insert<Initialized>>, mut commands: Commands, children: Query<&Children>, bones: Query<&VrmBone>, tree: TransformTree) {
+fn resolve_avatar(
+    ready: On<Insert<Initialized>>,
+    mut commands: Commands,
+    children: Query<&Children>,
+    bones: Query<&VrmBone>,
+    tree: TransformTree,
+    surfaces: Query<&MeshMaterial3d<MToonMaterial>>,
+    mut materials: ResMut<Assets<MToonMaterial>>,
+) {
     let root = ready.entity;
+    add_outlines(children.iter_descendants(root).filter_map(|e| surfaces.get(e).ok()), &mut materials);
     let mut humanoid = Humanoid::default();
     for entity in children.iter_descendants(root) {
         if let Ok(bone) = bones.get(entity)
@@ -53,7 +65,18 @@ fn resolve_avatar(ready: On<Insert<Initialized>>, mut commands: Commands, childr
     humanoid.set_extent(children.iter_descendants(root), &tree);
     info!("VRM avatar loaded: {} humanoid bones", humanoid.bones.len());
     let driven = humanoid.bones.values().copied().collect();
-    commands.entity(root).insert((humanoid, VrmRig { driven, sent: HashMap::new() }));
+    commands.entity(root).insert((humanoid, VrmRig { driven, sent: HashMap::new() }, AvatarReady));
+}
+
+/// Makes each double-sided material with an outline single-sided, so bevy_vrm1 draws its outline.
+fn add_outlines<'a>(surfaces: impl Iterator<Item = &'a MeshMaterial3d<MToonMaterial>>, materials: &mut Assets<MToonMaterial>) {
+    for surface in surfaces {
+        if materials.get(&surface.0).is_some_and(|m| m.outline.mode == OutlineWidthMode::WorldCoordinates && m.outline.width_factor > 0.0 && m.cull_mode.is_none())
+            && let Some(mut material) = materials.get_mut(&surface.0)
+        {
+            material.cull_mode = Some(Face::Back);
+        }
+    }
 }
 
 fn reset_bones(rigs: Query<&VrmRig>, mut transforms: Query<&mut Transform>) {

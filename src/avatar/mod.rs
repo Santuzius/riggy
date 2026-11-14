@@ -324,6 +324,10 @@ impl Expressions {
 #[derive(Component)]
 pub struct AvatarRoot;
 
+/// Inserted on the avatar root once the backend has resolved the model, together with its [`Humanoid`] or [`Machine`] if it has one.
+#[derive(Component)]
+pub struct AvatarReady;
+
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AvatarSet {
     /// The backend puts every driven bone back to its rest pose.

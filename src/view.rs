@@ -12,9 +12,9 @@ use riggy::control::Command;
 use riggy::settings::Settings;
 
 use crate::animation::stance::Stance;
-use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
+use crate::avatar::{AvatarReady, AvatarRoot, Humanoid, HumanoidBone};
 use crate::commands::Received;
-use crate::config::Config;
+use crate::config::{AvatarKind, Config};
 
 /// Relative margin above the figure in the full view.
 const MARGIN: f32 = 0.06;
@@ -35,6 +35,8 @@ const MIN_ASPECT: f32 = 0.3;
 const MAX_ASPECT: f32 = 2.5;
 /// Logical pixels by which the fitting width must differ before the window changes.
 const WIDTH_STEP: f32 = 8.0;
+/// Ambient light for a VRM avatar, in the units of `GlobalAmbientLight::brightness`.
+const VRM_AMBIENT: f32 = 50.0;
 /// Seconds the face close-up takes to follow the eyes.
 const FACE_TIME: f32 = 0.6;
 
@@ -92,6 +94,11 @@ fn setup(mut commands: Commands, config: Res<Config>) {
         ..OrthographicProjection::default_3d()
     };
     commands.spawn((Camera3d::default(), Projection::Orthographic(projection), framing, Transform::from_xyz(0.0, 1.0, CAMERA_DISTANCE)));
+    let vrm = config.avatar.kind == AvatarKind::Vrm;
+    // MToon (VRM) adds up the lit share of every directional light regardless of its strength, so more than one light washes the shading out; its ambient light only lifts the shade a little.
+    if vrm {
+        commands.insert_resource(GlobalAmbientLight { color: Color::WHITE, brightness: VRM_AMBIENT, ..default() });
+    }
     // Key light from the front left above, fill from the right, rim from behind.
     commands.spawn((
         DirectionalLight {
@@ -101,6 +108,9 @@ fn setup(mut commands: Commands, config: Res<Config>) {
         },
         Transform::from_xyz(1.5, 2.5, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
     ));
+    if vrm {
+        return;
+    }
     commands.spawn((
         DirectionalLight {
             illuminance: 1500.0,
@@ -117,10 +127,14 @@ fn setup(mut commands: Commands, config: Res<Config>) {
     ));
 }
 
-/// Sets the full-figure framing from the mesh bounds once they exist, and the face framing from the humanoid's head.
+/// Frames after the avatar is ready during which the framing waits, so the idle pose has moved the bones away from the rest pose (a T pose stretches the arms out) and their global transforms have followed.
+const POSE_FRAMES: u32 = 3;
+
+/// Sets the full-figure framing from the mesh bounds once they exist and the avatar stands in its idle pose, and the face framing from the humanoid's head.
 fn frame_avatar(
     mut cameras: Query<&mut Framing>,
-    avatars: Query<(Entity, &GlobalTransform, Option<&Humanoid>), With<AvatarRoot>>,
+    avatars: Query<(Entity, &GlobalTransform, Option<&Humanoid>), (With<AvatarRoot>, With<AvatarReady>)>,
+    mut posed_for: Local<u32>,
     children: Query<&Children>,
     meshes: Query<(&GlobalTransform, Option<&Aabb>, &Mesh3d, Option<&SkinnedMesh>)>,
     mesh_assets: Res<Assets<Mesh>>,
@@ -132,6 +146,10 @@ fn frame_avatar(
         return;
     }
     let Ok((root, root_transform, humanoid)) = avatars.single() else { return };
+    if *posed_for < POSE_FRAMES {
+        *posed_for += 1;
+        return;
+    }
 
     let mut min = Vec3A::splat(f32::MAX);
     let mut max = Vec3A::splat(f32::MIN);
