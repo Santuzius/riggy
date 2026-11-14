@@ -1,0 +1,105 @@
+//! `riggy-mcp`: stdio MCP server with one tool, `speak(text, language)`, that reads a short text aloud.
+//!
+//! Speech comes from the Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`). If the avatar runs, it plays the audio and lip-syncs to it; otherwise `pw-play` plays it. `speak` returns at once; texts are queued, each plays to its end, with a pause before the next one. Voice and tempo come from the tray's settings (`riggy::settings`), read for every text, and nothing is spoken while the tray has speech switched off.
+
+mod player;
+
+use std::io::{BufRead, Write};
+use std::time::Duration;
+
+use serde_json::{Value, json};
+
+use player::{Player, Speech};
+
+const PROTOCOL_VERSION: &str = "2025-06-18";
+const LANGUAGES: [&str; 3] = ["German", "English", "auto"];
+
+fn main() {
+    let player = Player::start(tts_url());
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    for line in stdin.lock().lines().map_while(Result::ok) {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Ok(message) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        // Notifications carry no id and get no reply.
+        let Some(id) = message.get("id").cloned() else {
+            continue;
+        };
+        let reply = match handle(&message, &player) {
+            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+            Err(error) => json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": error } }),
+        };
+        if writeln!(stdout, "{reply}").and_then(|()| stdout.flush()).is_err() {
+            break;
+        }
+    }
+    player.stop();
+}
+
+fn tts_url() -> String {
+    std::env::var("TTS_URL").unwrap_or_else(|_| "http://127.0.0.1:8902".into())
+}
+
+/// The result of one request, or the error message for an unknown method or tool.
+fn handle(message: &Value, player: &Player) -> Result<Value, String> {
+    let method = message["method"].as_str().unwrap_or_default();
+    let params = &message["params"];
+    match method {
+        "initialize" => Ok(json!({
+            "protocolVersion": params["protocolVersion"].as_str().unwrap_or(PROTOCOL_VERSION),
+            "capabilities": { "tools": {} },
+            "serverInfo": { "name": "riggy", "version": env!("CARGO_PKG_VERSION") },
+        })),
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({ "tools": [tool()] })),
+        "tools/call" => match params["name"].as_str() {
+            Some("speak") => Ok(json!({ "content": [{ "type": "text", "text": speak(&params["arguments"], player) }] })),
+            other => Err(format!("Unknown tool: {}", other.unwrap_or_default())),
+        },
+        _ => Err(format!("Unknown method: {method}")),
+    }
+}
+
+fn tool() -> Value {
+    json!({
+        "name": "speak",
+        "description": "Read a very short summary aloud on the user's speakers. Returns immediately. Pass one or two plain spoken sentences, with hardly any numbers and no Markdown, code, tables or URLs.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": { "type": "string", "description": "Plain text to speak." },
+                "language": { "type": "string", "enum": LANGUAGES, "description": "Language of the text. Default: German." },
+            },
+            "required": ["text"],
+        },
+    })
+}
+
+/// The status text for the agent; failing to speak must never look like a failed turn.
+fn speak(arguments: &Value, player: &Player) -> String {
+    let text = arguments["text"].as_str().unwrap_or_default().trim();
+    let language = arguments["language"].as_str().unwrap_or("German");
+    if text.is_empty() {
+        return "Nothing to speak: text is empty.".into();
+    }
+    if !LANGUAGES.contains(&language) {
+        return format!("Unknown language {language:?}. Use one of: {}.", LANGUAGES.join(", "));
+    }
+    if riggy::settings::speech_off() {
+        return "TTS is switched off. Nothing was spoken.".into();
+    }
+    if !server_reachable() {
+        return format!("TTS server not reachable at {}. Nothing was spoken.", tts_url());
+    }
+    player.play(Speech { text: text.into(), language: language.into() });
+    "Speaking.".into()
+}
+
+fn server_reachable() -> bool {
+    let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(Duration::from_secs(1))).build().into();
+    agent.get(format!("{}/health", tts_url())).call().is_ok()
+}

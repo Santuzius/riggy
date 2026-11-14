@@ -33,6 +33,22 @@ So poses, mouth shapes and props can be tuned in the editor while the window sho
 - `[debug] expressions = { blink = 0.0, aa = 1.0 }` in the config forces expression weights over everything blink and mouth code set; an empty table turns it off. Forcing `ee` does not raise the cheeks, which the mouth code drives through the separate expression `cheeks`; force that too to see both.
 - `[window] zoom` sets the start zoom (0 = full figure, 1 = face).
 
+## Tray and MCP server
+
+```bash
+nix develop -c cargo build --bins                  # riggy, riggy-tray, riggy-mcp in target/debug
+nix develop -c target/debug/riggy-tray             # starts target/debug/riggy itself
+tools/tray_menu.sh                                 # prints the tray menu with its entry ids
+tools/tray_menu.sh "Click-through"                 # clicks an entry, as the panel would
+```
+
+- The tray's log is riggy's log too, since it starts the avatar as its child; `command: …` lines show what arrived on the control socket.
+- `riggy-mcp` can be tried without an MCP client by piping JSON-RPC lines into it, with ffmpeg on `PATH`:
+  ```bash
+  (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"speak","arguments":{"text":"Hello.","language":"English"}}}'; sleep 8) | nix shell nixpkgs#ffmpeg -c target/debug/riggy-mcp
+  ```
+  The `sleep` keeps the pipe open: `riggy-mcp` stops playing when its input ends.
+
 ## Screenshots
 
 Screenshots never capture the real desktop. `agent-screenshot` (from portable-nixos, `services/agent/screenshot`) starts riggy on a private virtual X screen and saves exactly its window; the NVIDIA GPU renders there through Vulkan as on the desktop.

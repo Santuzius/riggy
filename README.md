@@ -11,7 +11,7 @@ cargo run
 
 The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries (Vulkan, Wayland, X11, ALSA, udev) and the tools of the lip-sync modes (Rhubarb Lip Sync, eSpeak NG).
 
-The flake also builds riggy as a package; run it from the checkout, where `riggy.toml` and `assets/` are:
+The flake also builds riggy as a package with three programs: the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`. Run the avatar and the tray from the checkout, where `riggy.toml` and `assets/` are:
 
 | Package | Cargo features | Lip-sync modes | License of the binary |
 |---|---|---|---|
@@ -38,7 +38,7 @@ riggy listens on the Unix socket `$XDG_RUNTIME_DIR/riggy.sock`, plays what it re
 1. one line of JSON: `{"text": "Hello", "language": "English", "rate": 24000}` (`rate` in Hz; all fields optional),
 2. raw PCM, signed 16-bit little-endian mono, until the sender closes the connection.
 
-Later connections wait until the earlier ones have been read. The `speak` tool of [mcp-tts](https://github.com/Santuzius/portable-nixos/tree/main/services/mcp-tts) uses this socket whenever riggy runs, so spoken agent replies come out of riggy's mouth. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
+Later connections wait until the earlier ones have been read. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
 
 ```bash
 nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
@@ -50,9 +50,31 @@ Three lip-sync modes, chosen with `[lipsync] mode` in `riggy.toml` or cycled wit
 - `rhubarb`: [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) recognises the sounds and returns mouth shapes with timings, including closed lips for m, b and p. riggy cuts the arriving speech at pauses and analyses each piece (about 1 s per piece), so speech starts about 2 s later. The Nix shell provides `rhubarb`; the flake packages its Linux release.
 - `text`: the mouth shapes come from the text in the socket header. [eSpeak NG](https://github.com/espeak-ng/espeak-ng) speaks the text itself, which gives its phonemes in any of its languages, including the German umlauts. riggy matches that synthetic speech to the real one while it arrives (dynamic time warping of MFCCs, as the forced aligner [aeneas](https://github.com/readbeyond/aeneas) does), which times each phoneme, and turns the timed phonemes into mouth shapes with Rhubarb's animation rules. Speech starts about 0.3 s later.
 
+## Speech for AI agents
+
+`riggy-mcp` is a stdio MCP server with one tool, `speak(text, language)`, that reads a short text aloud and returns at once. It fetches the speech from the Qwen3-TTS server (`TTS_URL`), changes its tempo with ffmpeg and sends it to riggy's socket, so the agent's replies come out of riggy's mouth; while riggy is closed, `pw-play` plays it. Texts are queued, each plays to its end, and at least 3 s of silence separate them. Register it, for example, with
+
+```bash
+claude mcp add --scope user tts riggy-mcp
+```
+
+`RIGGY_SOCKET` points it at another speech socket.
+
+## Tray icon
+
+`riggy-tray` puts an icon in the system tray (StatusNotifierItem, as on KDE Plasma) that controls speech and the avatar:
+
+- **Speech**: on or off. Off stops the speech server's systemd user unit `qwentts`, which frees its GPU memory, and makes `speak` play nothing.
+- **Voice** and **Tempo**: apply from the next spoken text on.
+- **Show riggy**: starts or closes the avatar on the desktop (a left click on the icon does the same). The tray starts it with `RIGGY_DESKTOP=1`: transparent and above the other windows, whatever `riggy.toml` says.
+- **Click-through**: off lets riggy be dragged with the left mouse button; on lets clicks go to the windows underneath.
+- **Lip sync**: the mode from the next utterance on.
+
+The choices are kept in `~/.local/state/riggy/settings.toml`; while speech is off, the file `~/.local/state/riggy/speech-off` exists, which the `qwentts` unit can check (`ConditionPathExists`) so that speech stays off across logins. The tray reaches the avatar through the control socket `$XDG_RUNTIME_DIR/riggy-control.sock`, one JSON command per line: `{"click_through":true}`, `{"lipsync":"text"}`, `"quit"`.
+
 ## On the desktop
 
-With these settings in `riggy.toml`, riggy stands on the desktop as a figure without a window around it:
+Without the tray, these settings in `riggy.toml` make riggy stand on the desktop as a figure without a window around it:
 
 ```toml
 [window]

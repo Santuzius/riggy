@@ -37,7 +37,7 @@
       };
       lib = pkgs.lib;
       cargoToml = lib.importTOML ./Cargo.toml;
-      # riggy with a choice of Cargo features: "rhubarb" puts the Rhubarb program on riggy's PATH, "espeak" links libespeak-ng (GPL-3.0-or-later, so that build is GPL-3.0-or-later as a whole). Run it from the riggy checkout, where riggy.toml and assets/ are.
+      # riggy with a choice of Cargo features: "rhubarb" puts the Rhubarb program on riggy's PATH, "espeak" links libespeak-ng (GPL-3.0-or-later, so that build is GPL-3.0-or-later as a whole). The package holds the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`; run the avatar and the tray from the riggy checkout, where riggy.toml and assets/ are.
       mkRiggy = features: pkgs.rustPlatform.buildRustPackage {
         pname = "riggy";
         inherit (cargoToml.package) version;
@@ -52,10 +52,13 @@
         buildInputs = runtimeLibs ++ lib.optional (lib.elem "espeak" features) pkgs.espeak-ng;
         # The unit tests run in the dev shell; the package build only compiles.
         doCheck = false;
+        # riggy-mcp pipes the speech through ffmpeg and plays it with pw-play when the avatar is closed; riggy-tray switches the speech server with systemctl.
         postFixup = ''
           wrapProgram $out/bin/riggy \
             --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath runtimeLibs} \
             ${lib.optionalString (lib.elem "rhubarb" features) "--prefix PATH : ${rhubarb}/bin"}
+          wrapProgram $out/bin/riggy-mcp --prefix PATH : ${lib.makeBinPath [ pkgs.ffmpeg pkgs.pipewire ]}
+          wrapProgram $out/bin/riggy-tray --prefix PATH : ${lib.makeBinPath [ pkgs.systemd ]}
         '';
         meta = {
           inherit (cargoToml.package) description;
