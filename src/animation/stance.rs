@@ -27,6 +27,8 @@ const STEP_SHIFT: f32 = 0.3;
 const TURN_RATE: f32 = 300.0;
 /// Degrees the body leads the feet at most; beyond it the body waits for the feet.
 const TURN_LEAD: f32 = 40.0;
+/// Share of the angle between body and feet by which the pelvis stays turned towards the feet; the spine and chest turn it back, so the thighs twist less against the pelvis and a skirt does not kink at the waist.
+const PELVIS_FOLLOW: f32 = 0.6;
 
 pub struct StancePlugin;
 
@@ -93,6 +95,12 @@ impl Stance {
     /// Whether a foot is in the air.
     pub fn stepping(&self) -> bool {
         self.feet.iter().any(|f| f.step.is_some())
+    }
+
+    /// Angle from the body to the middle of the feet, positive to the figure's left.
+    fn feet_lag(&self) -> f32 {
+        let feet_heading = self.feet[0].heading + wrapped(self.feet[1].heading - self.feet[0].heading) / 2.0;
+        wrapped(feet_heading - self.turn)
     }
 
     /// Ground-space place of ankle `i` when its foot points along `heading`.
@@ -180,10 +188,12 @@ fn step(time: Res<Time>, mut avatars: Query<(&mut Stance, &mut Transform), With<
     }
 }
 
-/// Moves and turns the hips as idle motion asks (`sway` in avatar space, `roll` about the hips' pivot), shifts them over the standing foot during a step, lowers them as far as the legs need to reach the floor, and bends the legs so the ankles reach their places.
+/// Moves and turns the hips as idle motion asks (`sway` in avatar space, `roll` about the hips' pivot), turns the pelvis partly towards the feet and the spine back, shifts them over the standing foot during a step, lowers them as far as the legs need to reach the floor, and bends the legs so the ankles reach their places.
 pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, transforms: &mut Query<&mut Transform>) {
     const LEGS: [(B, B, B); 2] = [(B::LeftUpperLeg, B::LeftLowerLeg, B::LeftFoot), (B::RightUpperLeg, B::RightLowerLeg, B::RightFoot)];
     let Some(hips) = h.position(B::Hips) else { return };
+    let twist = Quat::from_rotation_y(PELVIS_FOLLOW * stance.feet_lag());
+    let roll = twist * roll;
     let Some(legs) = LEGS.iter().map(|&(upper, lower, foot)| Some((upper, lower, foot, h.position(upper)?, h.position(lower)?, h.position(foot)?))).collect::<Option<Vec<_>>>() else {
         return;
     };
@@ -207,6 +217,9 @@ pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, transforms: 
     let offset = shift - Vec3::Y * sink;
     h.translate(B::Hips, offset, transforms);
     h.rotate(B::Hips, roll, transforms);
+    let back = Quat::IDENTITY.slerp(twist.inverse(), 0.5);
+    h.rotate(B::Spine, back, transforms);
+    h.rotate(B::Chest, back, transforms);
 
     for (i, &(upper, lower, foot, hip0, knee0, ankle0)) in legs.iter().enumerate() {
         let (target, heading) = stance.target(i);
