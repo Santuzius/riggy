@@ -21,6 +21,21 @@ python3 tools/fix_bind_pose.py ~/Downloads/cyborg_girl/cyborg_girl.glb assets/mo
 
 `python3` with NumPy is part of the Nix shell.
 
+## Speech
+
+riggy listens on the Unix socket `$XDG_RUNTIME_DIR/riggy.sock`, plays what it receives on the default sound output and moves the mouth with it. One connection carries one utterance:
+
+1. one line of JSON: `{"text": "Hello", "language": "English", "rate": 24000}` (`rate` in Hz; all fields optional),
+2. raw PCM, signed 16-bit little-endian mono, until the sender closes the connection.
+
+Later connections wait until the earlier ones have been read. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
+
+```bash
+nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
+```
+
+The mouth follows the sound itself: loudness sets how far it opens, and the balance of low and high frequencies chooses between the five mouth shapes. `[mouth]` in `riggy.toml` sets the loudness range and an extra delay of the mouth behind the sound.
+
 ## Development
 
-[doc/development.md](doc/development.md) covers live reloading, debug keys, node dumps and screenshots.
+[doc/development.md](doc/development.md) covers live reloading, debug keys, node dumps, screenshots and lip-sync tuning.

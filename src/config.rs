@@ -147,7 +147,7 @@ pub struct MouthConfig {
     pub silence_level: f32,
     /// RMS level that opens the mouth fully.
     pub loud_level: f32,
-    /// Delay added to the audio clock in seconds, to match the sound card's output latency.
+    /// Extra delay in seconds between the sound and the mouth, on top of the output latency the sound device reports.
     pub audio_latency: f32,
 }
 
@@ -156,8 +156,8 @@ impl Default for MouthConfig {
         Self {
             time_constant: 0.04,
             silence_level: 0.01,
-            loud_level: 0.15,
-            audio_latency: 0.05,
+            loud_level: 0.12,
+            audio_latency: 0.0,
         }
     }
 }

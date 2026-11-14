@@ -27,9 +27,16 @@ min_interval = 2.0
 max_interval = 6.0
 duration = 0.15
 
-# Mouth: smoothing time constant of the mouth shapes in seconds.
+# Mouth: smoothing time constant of the mouth shapes in seconds; speech RMS levels (full scale 1) at which the mouth starts to open and opens fully; extra delay of the mouth behind the sound in seconds.
 [mouth]
 time_constant = 0.04
+silence_level = 0.01
+loud_level = 0.12
+audio_latency = 0.0
+
+# Speech socket; empty means $XDG_RUNTIME_DIR/riggy.sock (applies at startup).
+[speech]
+socket = ""
 
 # Tuning aid: force expression weights, e.g. expressions = { blink = 1.0 }.
 [debug]

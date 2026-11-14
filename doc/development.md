@@ -45,6 +45,21 @@ CMD="RIGGY_CONFIG=temp/my.toml nix develop -c target/debug/riggy" GRAB=root agen
 
 `tools/expression_shots.sh OUTDIR [EXPRESSION ...]` builds on this: it shoots the face close-up at rest and with each expression at full weight (default: the five mouth shapes), with idle motion and blinking off, and puts the mouth regions side by side in `OUTDIR/all.png`. One shot takes about 20 s.
 
+Shots during speech need the audio to start at a known moment. xdotool's `exec --sync` step starts the sender and waits; with `WAIT=0` the shot follows right after:
+
+```bash
+WAIT=0 CMD="RIGGY_CONFIG=temp/my.toml nix develop -c target/debug/riggy" GRAB=root agent-screenshot temp/talk.png 'sleep 10' "exec --sync sh -c 'RIGGY_SOCKET=/tmp/riggy-test.sock target/debug/examples/say --file temp/speech.pcm & sleep 3.05'"
+```
+
+Point `[speech] socket` in `temp/my.toml` at the same test socket so a running riggy on the desktop is not disturbed. The sound plays on the real speakers. Prebuffering delays playback by 0.2 s, so aim the sleep at a loud stretch found with the `lipsync` example below, plus 0.2 s.
+
+## Speech and lip sync
+
+- `examples/say.rs` sends speech to the socket: a text through Qwen3-TTS, or with `--file` a raw PCM file (24 kHz s16le mono, the server's `pcm` format). `RIGGY_SOCKET` sets the socket.
+- A PCM file for repeatable tests: `curl -s -X POST http://127.0.0.1:8902/v1/audio/speech -H 'Content-Type: application/json' -d '{"voice":"serena","input":"See. Me. Tea.","language":"English","response_format":"pcm","seed":2}' -o temp/ee.pcm`
+- `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync.rs` come from such runs over one test word list per vowel.
+- The log shows `speech started` and `speech ended` from the lip-sync clock, and `audio output: … Hz` once the sound device is open.
+
 ## Model preparation
 
 - `tools/fix_bind_pose.py IN.glb OUT.glb` gives the Fab cyborg girl's bone nodes a rest pose (see the README).
