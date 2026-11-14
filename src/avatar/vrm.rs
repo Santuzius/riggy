@@ -2,12 +2,13 @@
 //!
 //! MToon shades by the direction of each directional light and ignores its strength, so a VRM avatar is lit by one key light (`view`). bevy_vrm1 draws no outline on a double-sided material (most of a VRoid model), so the outlined ones are made single-sided; the inside of a skirt then shows in the outline colour, as in VRoid Hub's viewer.
 //!
-//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; one next to it may set `window_height`.
+//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; one next to it may set `window_height`. Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
+use bevy_vrm1::vrm::spring_bone::{SpringCenterNode, SpringRoot};
 use bevy_vrm1::prelude::{Initialized, MToonMaterial, OutlineWidthMode, SetExpressions, VrmBone, VrmExpression, VrmHandle, VrmPlugin};
 
 use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, ExpressionPreset, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
@@ -50,8 +51,10 @@ fn resolve_avatar(
     tree: TransformTree,
     surfaces: Query<&MeshMaterial3d<MToonMaterial>>,
     mut materials: ResMut<Assets<MToonMaterial>>,
+    mut springs: Query<&mut SpringRoot>,
 ) {
     let root = ready.entity;
+    follow_root(root, children.iter_descendants(root), &mut springs);
     add_outlines(children.iter_descendants(root).filter_map(|e| surfaces.get(e).ok()), &mut materials);
     let mut humanoid = Humanoid::default();
     for entity in children.iter_descendants(root) {
@@ -66,6 +69,17 @@ fn resolve_avatar(
     info!("VRM avatar loaded: {} humanoid bones", humanoid.bones.len());
     let driven = humanoid.bones.values().copied().collect();
     commands.entity(root).insert((humanoid, VrmRig { driven, sent: HashMap::new() }, AvatarReady));
+}
+
+/// Makes `root` the center of each spring chain that has none, so hair and cloth swing with the figure's own movement but not with its turn or its shift on the screen, which riggy gives the avatar root.
+fn follow_root(root: Entity, entities: impl Iterator<Item = Entity>, springs: &mut Query<&mut SpringRoot>) {
+    for entity in entities {
+        if let Ok(mut spring) = springs.get_mut(entity)
+            && spring.center_node.0.is_none()
+        {
+            spring.center_node = SpringCenterNode(Some(root));
+        }
+    }
 }
 
 /// Makes each double-sided material with an outline single-sided, so bevy_vrm1 draws its outline.
