@@ -1,4 +1,4 @@
-//! Motion of machine avatars ([`Machine`]): the body floats and wobbles slowly, parts spin about the vertical axis, and while riggy speaks the parts move apart (expression `open`) and the lights pulse with the voice (expression `glow`).
+//! Motion of machine avatars ([`Machine`]): the body turns as `facing` says, hidden parts shrink away, the body floats and wobbles slowly, parts spin about the vertical axis, and while riggy speaks the parts move apart (expression `open`) and the lights pulse with the voice (expression `glow`).
 
 use std::collections::HashMap;
 use std::f32::consts::TAU;
@@ -39,6 +39,12 @@ fn spin_rate(machine: &Machine, part: &str, speaking: bool) -> Option<f32> {
     speaking_rate.or_else(|| machine.spin.get(part)).copied()
 }
 
+/// The body's fixed turn from `[machine] facing`.
+fn facing(machine: &Machine) -> Quat {
+    let axis_angle = Vec3::from(machine.facing);
+    if axis_angle.length() < 1e-6 { Quat::IDENTITY } else { Quat::from_axis_angle(axis_angle.normalize(), axis_angle.length().to_radians()) }
+}
+
 fn float_and_spin(time: Res<Time>, voice: Res<Voice>, mut spins: Local<HashMap<String, Spin>>, avatars: Query<(&Machine, &Parts)>, mut transforms: Query<&mut Transform>) {
     let t = time.elapsed_secs();
     let dt = time.delta_secs();
@@ -51,7 +57,15 @@ fn float_and_spin(time: Res<Time>, voice: Res<Voice>, mut spins: Local<HashMap<S
             let wobble = machine.wobble.to_radians();
             let tilt = Quat::from_euler(EulerRot::XYZ, wobble * (TAU * machine.float_rate * 0.7 * t).sin(), 0.0, wobble * (TAU * machine.float_rate * 0.53 * t + 1.0).sin());
             body.translate(&mut transform, Vec3::Y * lift);
-            body.rotate(&mut transform, tilt);
+            body.rotate(&mut transform, tilt * facing(machine));
+        }
+        for part in &machine.hidden {
+            if let Some(bone) = parts.bones.get(part)
+                && let Ok(mut transform) = transforms.get_mut(bone.entity)
+            {
+                // A part's vertices all follow its joint, so at scale 0 they shrink to one point.
+                transform.scale = Vec3::ZERO;
+            }
         }
         for (part, bone) in &parts.bones {
             let Some(wanted) = spin_rate(machine, part, voice.speaking) else { continue };

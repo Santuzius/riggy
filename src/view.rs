@@ -1,4 +1,4 @@
-//! Camera, lights and the figure's turn. The camera projects orthographically, so the floor is seen edge-on: every point on it, near or far, lies on one line of the window, as on a panel. Once the avatar's meshes are in place the camera frames the whole figure with the lowest sole on the window's bottom edge, so on the desktop the figure stands on the panel; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face, which follows the eyes. On the desktop the window's width follows the widest part of the figure in view. The figure turns (see `animation::stance`) as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
+//! Camera, lights and the figure's turn. The camera projects orthographically, so the floor is seen edge-on: every point on it, near or far, lies on one line of the window, as on a panel. Once the avatar's meshes are in place the camera frames the whole figure with the lowest sole on the window's bottom edge, so on the desktop the figure stands on the panel; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face, which follows the eyes. On the desktop the window's width follows the widest part of the figure in view, and its height the avatar's share of the configured height. The figure turns (see `animation::stance`) as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
@@ -12,7 +12,7 @@ use riggy::control::Command;
 use riggy::settings::Settings;
 
 use crate::animation::stance::Stance;
-use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
+use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone, WindowShare};
 use crate::commands::Received;
 use crate::config::Config;
 
@@ -387,16 +387,16 @@ fn window_aspect(profile: &[Vec2], shot: &Shot) -> Option<f32> {
 }
 
 /// On the desktop makes the window as wide as the part of the figure in view: wide for a machine, wider for the shoulders when zoomed in. The height stays as configured; the KWin script keeps the right edge in place.
-fn fit_window(config: Res<Config>, cameras: Query<&Framing>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
+fn fit_window(config: Res<Config>, cameras: Query<&Framing>, avatars: Query<&WindowShare, With<AvatarRoot>>, mut windows: Query<&mut Window, With<PrimaryWindow>>) {
     if !config.on_desktop {
         return;
     }
-    let (Ok(framing), Ok(mut window)) = (cameras.single(), windows.single_mut()) else { return };
+    let (Ok(framing), Ok(share), Ok(mut window)) = (cameras.single(), avatars.single(), windows.single_mut()) else { return };
     let Some(aspect) = current_shot(framing).and_then(|shot| window_aspect(&framing.profile, &shot)) else { return };
-    let height = window.resolution.height();
+    let height = (config.window.height as f32 * share.0).round();
     let width = (height * aspect).round();
     // Small changes, as the face close-up follows the eyes, would only make the window jitter.
-    if (width - window.resolution.width()).abs() >= WIDTH_STEP {
+    if (width - window.resolution.width()).abs() >= WIDTH_STEP || (height - window.resolution.height()).abs() >= 1.0 {
         window.resolution.set(width, height);
     }
 }

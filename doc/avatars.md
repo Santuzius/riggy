@@ -27,12 +27,13 @@ Positions and directions are in avatar space: +Y up, +Z the way the figure faces
 | Key | What |
 |---|---|
 | `scale` | factor from model units to metres (0.001 for a model in millimetres) |
+| `window_height` | share of the configured window height the avatar takes on the desktop (default 1), for a bulky avatar that should look smaller |
 | `[humanoid]` | VRM humanoid bone name (`hips`, `head`, `jaw`, `leftUpperArm`, …) → node name in the model |
 | `[expressions.NAME]` | node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at full weight; `rotate` is an axis-angle vector in degrees, `translate` an offset in model units |
 | `[rest]` | bone changes applied permanently, e.g. lips that do not quite close |
 | `[[props]]` | simple shapes on a bone (`shape = "sphere"` or `"cube"`, `center`, `size`, `color`, `unlit`), e.g. a mouth interior or teeth the model lacks |
 | `[parts]` | free part name → node name, for machines |
-| `[machine]` | makes the avatar a machine and sets how it moves: `body` (the part that floats and wobbles), `float` (height in model units), `float_rate` (Hz), `wobble` (degrees), `spin` and `speaking_spin` (part → degrees per second, positive anticlockwise seen from above), `open_time` (seconds), `rest_glow` and `glow_gain` (weight of `glow` while silent, and per unit of the voice's level) |
+| `[machine]` | makes the avatar a machine and sets how it moves: `body` (the part that floats and wobbles), `facing` (turn of the body, axis-angle in degrees, e.g. `[90, 0, 0]` shows its top to the viewer), `hidden` (parts not shown), `float` (height in model units), `float_rate` (Hz), `wobble` (degrees), `spin` and `speaking_spin` (part → degrees per second, positive anticlockwise seen from above), `open_time` (seconds), `rest_glow` and `glow_gain` (weight of `glow` while silent, and per unit of the voice's level) |
 | `[material]` | texture files in the model's folder for a model that has none: `base_color`, `orm` (occlusion, roughness, metalness in red, green, blue), `normal` (OpenGL convention), `emission`, and `emission_color` (linear RGB of the emission at full `glow`) |
 
 With `hips` and the leg bones (`leftUpperLeg`, `leftLowerLeg`, `leftFoot`, the same on the right, `leftToes` and `rightToes` optional) mapped, the feet stay on the floor: the legs bend to follow the hips, the figure turns about the middle of its feet, and the feet step after a turn. The knees bend about the avatar's X axis.

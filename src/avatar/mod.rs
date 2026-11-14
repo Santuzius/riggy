@@ -211,6 +211,10 @@ pub struct Machine {
     pub float_rate: f32,
     /// Tilt of the body while floating.
     pub wobble: f32,
+    /// Turn of the body as an axis-angle vector in degrees, applied before everything else, e.g. `[90, 0, 0]` shows the viewer what faced up; floating stays vertical, spins stay about the body's own axis.
+    pub facing: [f32; 3],
+    /// Parts not shown, such as a cap over what should be seen.
+    pub hidden: Vec<String>,
     /// Spin of parts about the vertical axis in degrees per second, positive anticlockwise seen from above.
     pub spin: HashMap<String, f32>,
     /// Spin while speaking, for the parts listed; the others keep `spin`.
@@ -230,6 +234,8 @@ impl Default for Machine {
             float: 0.0,
             float_rate: 0.2,
             wobble: 0.0,
+            facing: [0.0; 3],
+            hidden: Vec::new(),
             spin: HashMap::new(),
             speaking_spin: HashMap::new(),
             open_time: 0.3,
@@ -238,6 +244,10 @@ impl Default for Machine {
         }
     }
 }
+
+/// Share of the configured window height the avatar takes on the desktop (mapping file: `window_height`), so a bulky avatar can be shown smaller than a slim one; on the avatar root entity.
+#[derive(Component, Debug, Clone, Copy)]
+pub struct WindowShare(pub f32);
 
 /// Expression weights from 0 to 1, set each frame by blink and mouth code and applied by the backend.
 #[derive(Component, Debug, Default)]

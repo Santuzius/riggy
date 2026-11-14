@@ -1,8 +1,10 @@
-# Ballytic-813c Reforged by Lio3DW: a machine of three rings on one vertical axis, which floats and spins, and opens and glows while it speaks.
+# Ballytic-813c Reforged by Lio3DW: a machine of three rings on one axis, turned so its glowing eye under the cap looks at the viewer; it floats and spins, and the eye glows with the voice.
 # Its file has no textures; install them after it: riggy install Ballytic813c_Reforged_ByLio3DW.glb "ColorMap[1K].jpg" "ORM_Map[1K].png" "NormalMap_GL[1K].png" "EmissionMap[1K].png"
 # Avatar space: +Y up; model units are metres.
 
 scale = 1.0
+# Bulky, so it takes less of the window height than a slim figure.
+window_height = 0.6
 
 [parts]
 body = "MassCenterControl"
@@ -10,13 +12,15 @@ top = "Top"
 middle = "Middle"
 bottom = "Bottom"
 
-# Floating in metres and Hz, wobble in degrees, spins in degrees per second (positive: anticlockwise from above).
+# Facing and wobble in degrees, floating in metres and Hz, spins in degrees per second (positive: anticlockwise seen from the model's top). The top faces the viewer; its cap is hidden, so the eye shows.
 [machine]
 body = "body"
+facing = [90.0, 0.0, 0.0]
+hidden = ["top"]
 float = 0.08
 float_rate = 0.2
 wobble = 2.0
-spin = { top = 25.0, middle = -10.0, bottom = 18.0 }
+spin = { middle = -10.0, bottom = 18.0 }
 speaking_spin = { middle = -3.0 }
 open_time = 0.3
 rest_glow = 0.3
@@ -30,7 +34,3 @@ normal = "NormalMap_GL[1K].png"
 emission = "EmissionMap[1K].png"
 emission_color = [10.0, 10.0, 10.0]
 
-# While speaking the middle ring rises a little and the cap more, so the body opens above the bottom part, which stays on the floor (translate: metres).
-[expressions.open]
-"Top" = { translate = [0, 0.3, 0] }
-"Middle" = { translate = [0, 0.12, 0] }

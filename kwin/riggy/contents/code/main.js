@@ -28,14 +28,16 @@ function setUp(window) {
     window.skipSwitcher = true;
     window.onAllDesktops = true;
     place(window);
-    // riggy widens or narrows its window to fit the figure; keep the bottom right corner where it was, wherever it has been dragged.
+    // riggy fits its window to the figure in view; keep its horizontal centre and bottom edge where they were, wherever it has been dragged, so the figure stays put, but keep it on the screen.
     window.frameGeometryChanged.connect((old) => {
         const frame = window.frameGeometry;
         if (frame.width === old.width && frame.height === old.height) {
             return;
         }
+        const area = workspace.clientArea(KWin.MaximizeArea, window.output, workspace.currentDesktop);
+        const x = old.x + (old.width - frame.width) / 2;
         window.frameGeometry = {
-            x: old.x + old.width - frame.width,
+            x: Math.round(Math.max(area.x, Math.min(x, area.x + area.width - frame.width))),
             y: old.y + old.height - frame.height,
             width: frame.width,
             height: frame.height

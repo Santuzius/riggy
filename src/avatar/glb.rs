@@ -2,6 +2,7 @@
 //!
 //! The mapping file (TOML) has:
 //! - `scale`: factor from model units to metres;
+//! - `window_height`: share of the configured window height the avatar takes on the desktop (default 1);
 //! - `[humanoid]`: VRM humanoid bone name → node name;
 //! - `[parts]`: free part name → node name, for non-humanoid avatars;
 //! - `[machine]`: how a machine avatar moves (see [`Machine`]); with it the avatar is a machine, otherwise a humanoid;
@@ -26,7 +27,7 @@ use bevy::prelude::*;
 use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, avatar_space};
+use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, WindowShare, avatar_space};
 use crate::config::{AvatarKind, Config};
 
 /// Asset source id under which the model's directory is registered.
@@ -36,6 +37,7 @@ const SOURCE: &str = "avatar";
 #[serde(default)]
 pub struct Mapping {
     pub scale: f32,
+    pub window_height: f32,
     pub humanoid: HashMap<String, String>,
     pub parts: HashMap<String, String>,
     pub rest: HashMap<String, BoneDelta>,
@@ -70,6 +72,7 @@ impl Default for Mapping {
     fn default() -> Self {
         Self {
             scale: 1.0,
+            window_height: 1.0,
             humanoid: HashMap::new(),
             parts: HashMap::new(),
             rest: HashMap::new(),
@@ -303,7 +306,7 @@ fn resolve_avatar(
     rig.glowing = apply_material(&mapping.material, &model, surfaces, &asset_server, &mut meshes, &mut materials);
 
     let mut avatar = commands.entity(root);
-    avatar.insert((rig, parts));
+    avatar.insert((rig, parts, WindowShare(mapping.window_height.clamp(0.1, 1.0))));
     match mapping.machine {
         Some(machine) => {
             avatar.insert(machine);
