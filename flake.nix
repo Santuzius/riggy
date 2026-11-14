@@ -78,7 +78,7 @@
           cp -r assets/avatars $out/share/riggy/assets/
           cp -r kwin/riggy $out/share/kwin/scripts/
           install -Dm644 assets/riggy.desktop $out/share/applications/riggy.desktop
-          install -Dm644 assets/riggy.svg $out/share/icons/hicolor/scalable/apps/riggy.svg
+          install -Dm644 assets/icons/tray-tts-avatar.svg $out/share/icons/hicolor/scalable/apps/riggy.svg
         '';
         # Speech (riggy say, riggy-mcp) goes through ffmpeg and, while the avatar is closed, pw-play; the tray switches the speech server with systemctl or runs it (tts-server); xdg-open opens the tray's files; kwriteconfig6 enables the KWin script.
         postFixup = ''
