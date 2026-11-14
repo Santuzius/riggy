@@ -251,6 +251,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.104"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1972,6 +1978,23 @@ dependencies = [
  "disqualified",
  "indexmap",
  "thread_local",
+]
+
+[[package]]
+name = "bevy_vrm1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6954ffd683e3f42c2c0a5635a1a28b4c9c0104251efbbef079cb050d0cf21e0e"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bitflags 2.13.2",
+ "gltf",
+ "indexmap",
+ "paste",
+ "serde",
+ "serde_json",
+ "windows",
 ]
 
 [[package]]
@@ -4653,6 +4676,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "paste"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
+
+[[package]]
 name = "pastey"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5079,6 +5108,7 @@ name = "riggy"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "bevy_vrm1",
  "cpal 0.18.2",
  "ksni",
  "libc",

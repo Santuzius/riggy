@@ -75,8 +75,10 @@ pub enum AvatarKind {
 #[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct AvatarConfig {
+    /// Set from the model file's extension.
+    #[serde(skip)]
     pub kind: AvatarKind,
-    /// The model's name: its file is `~/.local/share/riggy/models/NAME.glb`, its mapping file `~/.local/share/riggy/avatars/NAME.toml`.
+    /// The model's name: its file is `~/.local/share/riggy/models/NAME.glb` or `NAME.vrm`, its mapping file `~/.local/share/riggy/avatars/NAME.toml`.
     pub name: String,
     /// Another model file instead (`~/` and paths relative to `~/.config/riggy/` work); filled in from `name` when empty.
     pub path: PathBuf,
@@ -268,6 +270,7 @@ pub fn load(path: &Path) -> Config {
     let avatar = &mut config.avatar;
     avatar.path = if avatar.path.as_os_str().is_empty() { riggy::files::model(&avatar.name) } else { riggy::files::resolve(&avatar.path) };
     avatar.mapping = if avatar.mapping.as_os_str().is_empty() { riggy::files::mapping(&avatar.name) } else { riggy::files::resolve(&avatar.mapping) };
+    avatar.kind = if avatar.path.extension().is_some_and(|e| e.eq_ignore_ascii_case("vrm")) { AvatarKind::Vrm } else { AvatarKind::Glb };
     config
 }
 

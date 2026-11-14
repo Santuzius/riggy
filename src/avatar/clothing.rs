@@ -14,7 +14,8 @@ use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
 use super::avatar_space;
-use super::glb::{GlbRig, SOURCE, TransformTree};
+use super::glb::GlbRig;
+use super::{SOURCE, TransformTree};
 
 /// Most joints one skinned mesh may have in Bevy.
 const MAX_JOINTS: usize = 256;

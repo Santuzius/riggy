@@ -1,7 +1,7 @@
 //! Where riggy keeps its files, as Linux programs usually do:
 //!
 //! - `~/.config/riggy/` (`$XDG_CONFIG_HOME/riggy`): `riggy.toml` with the user's settings, only what differs from the defaults; the tray's `settings.toml`; and the file `speech-off` while speech is switched off.
-//! - `~/.local/share/riggy/` (`$XDG_DATA_HOME/riggy`): the models, `models/NAME.glb`, which are not part of riggy, and their mapping files, `avatars/NAME.toml`, copied from riggy's default the first time a model is used.
+//! - `~/.local/share/riggy/` (`$XDG_DATA_HOME/riggy`): the models, `models/NAME.glb` or `models/NAME.vrm`, which are not part of riggy, and their mapping files, `avatars/NAME.toml`, copied from riggy's default the first time a model is used.
 //! - The defaults that come with riggy: `riggy.toml` and `assets/avatars/` in `$RIGGY_DATA_DIR` (the package's `share/riggy`; the dev shell points it at the checkout), built into the program as well.
 
 use std::io;
@@ -71,9 +71,13 @@ pub fn models_dir() -> PathBuf {
     data_dir().join("models")
 }
 
-/// The model file of `name`.
+/// File extensions of avatar models: GLB with a mapping file, VRM 1.0 without.
+pub const MODEL_EXTENSIONS: [&str; 2] = ["glb", "vrm"];
+
+/// The model file of `name`: the installed `NAME.vrm` if there is one, else `NAME.glb`.
 pub fn model(name: &str) -> PathBuf {
-    models_dir().join(format!("{name}.glb"))
+    let vrm = models_dir().join(format!("{name}.vrm"));
+    if vrm.exists() { vrm } else { models_dir().join(format!("{name}.glb")) }
 }
 
 /// The folder of the textures of model `name`, for a model whose file comes without them (mapping file: `[material]`).
@@ -88,10 +92,11 @@ pub fn installed_models() -> Vec<String> {
         .flatten()
         .flatten()
         .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|e| e == "glb"))
+        .filter(|path| path.extension().and_then(|e| e.to_str()).is_some_and(|e| MODEL_EXTENSIONS.contains(&e)))
         .filter_map(|path| path.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
         .collect();
     names.sort();
+    names.dedup();
     names
 }
 

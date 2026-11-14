@@ -101,11 +101,11 @@
       packages.${system} = {
         inherit rhubarb;
         # All lip-sync modes.
-        default = mkRiggy [ "rhubarb" "espeak" ];
+        default = mkRiggy [ "rhubarb" "espeak" "vrm" ];
         # Only the sound and Rhubarb modes; MIT throughout.
-        riggy-mit = mkRiggy [ "rhubarb" ];
+        riggy-mit = mkRiggy [ "rhubarb" "vrm" ];
         # Only the sound-driven lip sync.
-        riggy-minimal = mkRiggy [ ];
+        riggy-minimal = mkRiggy [ "vrm" ];
       };
 
       # NixOS module: installs Riggy (with its start menu entry; the tray adds itself to the login autostart) and runs the speech server (qwentts-nix) for it. The machine adds what depends on its hardware, such as services.qwentts.device.

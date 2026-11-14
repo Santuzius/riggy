@@ -10,7 +10,7 @@ use riggy::{settings, speech_server};
 const USAGE: &str = "\
 Usage:
   riggy                                   show the avatar (the tray icon riggy-tray does this for you)
-  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb), each avatar followed by its textures (.png, .jpg) if its file has none and its clothing (.glb without a skeleton)
+  riggy install FILE ...                  install speech models (.gguf) and avatars (.glb, VRM 1.0 .vrm), each avatar followed by its textures (.png, .jpg) if its file has none and its clothing (.glb without a skeleton)
   riggy say [--language LANGUAGE] TEXT    speak TEXT (LANGUAGE: English, German, auto; default English)";
 
 /// What the command line asks for.

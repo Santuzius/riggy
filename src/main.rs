@@ -42,7 +42,7 @@ fn run_avatar() {
     }
 
     let mut app = App::new();
-    avatar::glb::register_model_source(&mut app, &config.avatar.path);
+    avatar::register_model_source(&mut app, &config.avatar.path);
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(window::primary_window(&config.window)),
         primary_cursor_options: Some(window::primary_cursor_options(&config.window)),

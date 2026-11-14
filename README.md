@@ -60,14 +60,15 @@ riggy install ~/Downloads/qwen-talker-0.6b-customvoice-Q8_0.gguf ~/Downloads/qwe
 
 #### Avatars
 
-Riggy brings mapping files for these avatars. Download each in the GLB format, unpack it, and install it from its folder with the command in the table; it then appears in the tray menu under its file name.
+Riggy brings mapping files for the GLB avatars below; a VRM avatar needs none. Download each, unpack it, and install it from its folder with the command in the table; it then appears in the tray menu under its file name.
 
 |Avatar|Author|Screenshot|Features|Source|Install command|License|
 |---|---|---|---|---|---|---|
 |Cyborg girl (default)|[3dchmoshnik](https://www.fab.com/sellers/3dchmoshnik/about)|<img src="doc/images/Screenshot_20261114_203121.png" alt="Cyborg girl by 3dchmoshnik" width="250">|Humanoid, animated idle, walking and speaking|[link](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54)|`riggy install ./cyborg_girl.glb`|[CC BY 4.0](https://creativecommons.org/licenses/#licenses-40)|
 |Ballytic-813c|[Lio-3DW](https://www.fab.com/sellers/Lio-3DW/about)|<img src="doc/images/Screenshot_20261114_203211.png" alt="Ballytic-813c by Lio-3DW" width="250">|Non-humanoid, animated idle and speaking|[link](https://www.fab.com/listings/6ab2b5b2-393c-43fa-be61-f18d7753e31e)|`riggy install ./ModelFormats/Ballytic813c_Reforged_ByLio3DW.glb ./Textures/CleanTextures/1K_Textures/{"ColorMap[1K].jpg","ORM_Map[1K].png","NormalMap_GL[1K].png"} "./Textures/EmissionMap[1K].png"`|[Fab Standard License](https://www.fab.com/eula)|
+|Cyber-style girl|[IBUKI-PLANET](https://ibukiplanet.booth.pm/)|<img src="doc/images/Screenshot_20261114_cyber.png" alt="Cyber-style girl by IBUKI-PLANET" width="250">|Humanoid in VRM format, animated idle and speaking|[link](https://ibukiplanet.booth.pm/items/4224646)|[convert it to VRM 1.0](doc/avatars.md#vrm-avatars), then `riggy install ./cyber_ver101.vrm`|[IBUKI-PLANET's terms of use](https://ibukiplanet.booth.pm/items/4224646) (non-commercial, no redistribution)|
 
-Other avatars in GLB format are installed the same way. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
+Other avatars in GLB or VRM 1.0 format are installed the same way. A GLB avatar needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
 
 ### 3. Start
 

@@ -1,6 +1,6 @@
 //! Backend-neutral avatar interface in VRM 1.0 terms.
 //!
-//! Idle, gaze and pose code address bones only through [`HumanoidBone`]; lip sync and blinking set only [`Expressions`] weights. A backend (`glb` now, `vrm` later) resolves these names on its model.
+//! Idle, gaze and pose code address bones only through [`HumanoidBone`]; lip sync and blinking set only [`Expressions`] weights. A backend resolves these names on its model: `glb` through a mapping file, `vrm` (Cargo feature `vrm`) from the VRM file itself.
 //!
 //! An avatar is a humanoid ([`Humanoid`]) or a machine ([`Machine`]): a machine has named [`Parts`] instead of humanoid bones, which `animation::machine` floats and spins, and it speaks through the expressions `open` (the body parts apart) and `glow` (its lights).
 //!
@@ -8,13 +8,37 @@
 
 pub mod clothing;
 pub mod glb;
+#[cfg(feature = "vrm")]
+pub mod vrm;
 
 use std::collections::HashMap;
 use std::fmt;
+use std::path::Path;
 use std::str::FromStr;
 
+use bevy::asset::AssetPath;
+use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
 use bevy::math::Affine3A;
 use bevy::prelude::*;
+
+/// Asset source id under which the model's directory is registered.
+pub(crate) const SOURCE: &str = "avatar";
+
+/// Registers the model's directory as asset source; must run before `DefaultPlugins` is added.
+pub fn register_model_source(app: &mut App, model: &Path) {
+    let dir = model.parent().map(Path::to_path_buf).unwrap_or_default();
+    let dir = std::fs::canonicalize(&dir).unwrap_or(dir);
+    app.register_asset_source(SOURCE, AssetSourceBuilder::platform_default(&dir.to_string_lossy(), None));
+}
+
+/// Asset path of the model file `model` in the registered model source.
+pub(crate) fn model_asset_path(model: &Path) -> Option<AssetPath<'static>> {
+    let Some(file) = model.file_name() else {
+        error!("avatar path {} has no file name", model.display());
+        return None;
+    };
+    Some(AssetPath::from_path(Path::new(file)).into_owned().with_source(AssetSourceId::from(SOURCE)))
+}
 
 macro_rules! names {
     ($(#[$meta:meta])* $vis:vis enum $name:ident { $($variant:ident => $text:literal),* $(,)? }) => {
@@ -189,6 +213,13 @@ impl Humanoid {
         }
     }
 
+    /// Sets height and floor from the joint positions of `nodes` (avatar space).
+    pub fn set_extent(&mut self, nodes: impl Iterator<Item = Entity>, tree: &TransformTree) {
+        let ys: Vec<f32> = nodes.filter_map(|e| pose_bone(e, tree)).map(|b| b.position.y).collect();
+        self.floor = ys.iter().copied().fold(f32::MAX, f32::min);
+        self.height = ys.iter().copied().fold(f32::MIN, f32::max) - self.floor;
+    }
+
     /// Avatar-space rest position of a bone.
     pub fn position(&self, bone: HumanoidBone) -> Option<Vec3> {
         self.bones.get(&bone).map(|b| b.position)
@@ -314,6 +345,8 @@ impl Plugin for AvatarPlugin {
         app.configure_sets(Update, (AvatarSet::Reset, AvatarSet::Pose, AvatarSet::Express, AvatarSet::Override, AvatarSet::Apply).chain())
             .add_systems(Update, force_expressions.in_set(AvatarSet::Override))
             .add_plugins(glb::GlbAvatarPlugin);
+        #[cfg(feature = "vrm")]
+        app.add_plugins(vrm::VrmAvatarPlugin);
     }
 }
 
@@ -328,8 +361,17 @@ fn force_expressions(config: Res<crate::config::Config>, mut avatars: Query<&mut
     }
 }
 
+pub(crate) type TransformTree<'w, 's> = Query<'w, 's, (&'static Transform, Option<&'static ChildOf>, Has<AvatarRoot>)>;
+
+/// The bone `entity` with its current transform as rest pose.
+pub(crate) fn pose_bone(entity: Entity, tree: &TransformTree) -> Option<PoseBone> {
+    let (transform, parent, _) = tree.get(entity).ok()?;
+    let parent_space = parent.map(|p| avatar_space(p.parent(), tree)).unwrap_or(Affine3A::IDENTITY);
+    Some(PoseBone::new(entity, *transform, parent_space))
+}
+
 /// Avatar-space transform of `entity`: the product of local transforms from below the avatar root down to it.
-pub fn avatar_space(entity: Entity, transforms: &Query<(&Transform, Option<&ChildOf>, Has<AvatarRoot>)>) -> Affine3A {
+pub fn avatar_space(entity: Entity, transforms: &TransformTree) -> Affine3A {
     let mut affine = Affine3A::IDENTITY;
     let mut current = entity;
     while let Ok((transform, parent, is_root)) = transforms.get(current) {

@@ -85,13 +85,13 @@ pub fn has_skeleton(glb: &[u8]) -> Result<bool, String> {
     Ok(Glb::parse(glb)?.gltf["skins"].as_array().is_some_and(|skins| !skins.is_empty()))
 }
 
-struct Glb {
-    gltf: Value,
+pub(super) struct Glb {
+    pub(super) gltf: Value,
     binary: Vec<u8>,
 }
 
 impl Glb {
-    fn parse(bytes: &[u8]) -> Result<Self, String> {
+    pub(super) fn parse(bytes: &[u8]) -> Result<Self, String> {
         let word = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap())).ok_or("the file ends early");
         if word(0)? != MAGIC {
             return Err("not a GLB file".into());

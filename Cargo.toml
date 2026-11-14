@@ -11,17 +11,18 @@ keywords = ["mascot", "avatar", "tts", "lip-sync", "mcp"]
 categories = ["multimedia", "games"]
 
 [features]
-default = ["rhubarb", "espeak"]
+default = ["rhubarb", "espeak", "vrm"]
 # Lip-sync mode `rhubarb`: runs the Rhubarb Lip Sync program (MIT) on the speech.
 rhubarb = []
 # Lip-sync mode `text`: links libespeak-ng (GPL-3.0-or-later), so a riggy binary built with this feature is GPL-3.0-or-later as a whole; riggy's own source stays MIT.
 espeak = ["dep:realfft"]
-# VRM backend (iteration 8): bevy_vrm1 0.11 targets Bevy 0.20.
-vrm = []
+# Avatars in VRM 1.0 format, loaded by bevy_vrm1 (MIT OR Apache-2.0).
+vrm = ["dep:bevy_vrm1"]
 
 [dependencies]
-# Pinned to the Bevy release bevy_vrm1 0.11 builds against, so adding VRM later needs no Bevy upgrade.
+# Pinned to the Bevy release bevy_vrm1 0.11 builds against.
 bevy = { version = "=0.20.1", default-features = false, features = ["3d", "jpeg"] }
+bevy_vrm1 = { version = "0.11", optional = true }
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
 rand = "0.9"

@@ -1,6 +1,6 @@
 # Avatars
 
-An avatar is a rigged 3D model in GLB format plus a mapping file that tells Riggy which bones to move and how its mouth shapes look. It is a humanoid, which stands, breathes, blinks and moves its mouth, or a machine, which floats and spins its parts, and opens and glows while it speaks.
+An avatar is a rigged 3D model in GLB format plus a mapping file that tells Riggy which bones to move and how its mouth shapes look, or a model in VRM 1.0 format, which brings both itself. It is a humanoid, which stands, breathes, blinks and moves its mouth, or a machine, which floats and spins its parts, and opens and glows while it speaks.
 
 ## Installing
 
@@ -17,6 +17,30 @@ riggy install ~/Downloads/robot.glb ~/Downloads/robot/ColorMap.jpg ~/Downloads/r
 ```
 
 puts the images into `~/.local/share/riggy/models/robot/`, where the mapping file's `[material]` names them. Clothing, a `.glb` without a skeleton, goes there the same way when it follows the avatar, and the mapping file's `[[clothing]]` names it.
+
+## VRM avatars
+
+A VRM 1.0 file (`.vrm`) is installed like a GLB file:
+
+```bash
+riggy install ./model.vrm
+```
+
+Riggy takes its humanoid bones and its expressions (blinking, mouth shapes, smile) from the file, and bevy_vrm1 moves its spring bones (hair, cloth); it needs no mapping file. A mapping file `avatars/NAME.toml` may still set `window_height`.
+
+A VRM 0.x file is refused. Convert it once with the [VRM Add-on for Blender](https://github.com/saturday06/VRM-Addon-for-Blender): import it (File › Import › VRM), choose VRM 1.0 as the export version in the armature's VRM panel, and export it again (File › Export › VRM). The same works without opening Blender's window:
+
+```python
+# convert.py, run as: blender -b -P convert.py -- IN.vrm OUT.vrm
+import sys, bpy, addon_utils
+src, dst = sys.argv[sys.argv.index("--") + 1:][:2]
+addon_utils.enable("bl_ext.user_default.vrm", default_set=True)
+for o in list(bpy.data.objects): bpy.data.objects.remove(o)
+bpy.ops.import_scene.vrm(filepath=src)
+arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+arm.data.vrm_addon_extension.spec_version = "1.0"
+bpy.ops.export_scene.vrm(filepath=dst, armature_object_name=arm.name)
+```
 
 ## Mapping file
 

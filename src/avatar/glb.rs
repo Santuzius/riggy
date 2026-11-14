@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use bevy::asset::io::{AssetSourceBuilder, AssetSourceId};
+use bevy::asset::io::AssetSourceId;
 use bevy::asset::AssetPath;
 use bevy::math::Affine3A;
 use bevy::image::ImageLoaderSettings;
@@ -29,11 +29,8 @@ use bevy::world_serialization::WorldInstanceReady;
 use serde::Deserialize;
 
 use super::clothing::{ClothingSpec, spawn_clothing};
-use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, avatar_space};
+use super::{AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, Machine, Parts, PoseBone, SOURCE, TransformTree, avatar_space, model_asset_path, pose_bone};
 use crate::config::{AvatarKind, Config};
-
-/// Asset source id under which the model's directory is registered.
-pub(super) const SOURCE: &str = "avatar";
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -185,13 +182,6 @@ impl Plugin for GlbAvatarPlugin {
     }
 }
 
-/// Registers the model's directory as asset source; must run before `DefaultPlugins` is added.
-pub fn register_model_source(app: &mut App, model: &Path) {
-    let dir = model.parent().map(Path::to_path_buf).unwrap_or_default();
-    let dir = std::fs::canonicalize(&dir).unwrap_or(dir);
-    app.register_asset_source(SOURCE, AssetSourceBuilder::platform_default(&dir.to_string_lossy(), None));
-}
-
 fn spawn_avatar(mut commands: Commands, config: Res<Config>, asset_server: Res<AssetServer>) {
     if config.avatar.kind != AvatarKind::Glb {
         return;
@@ -204,11 +194,7 @@ fn spawn_avatar(mut commands: Commands, config: Res<Config>, asset_server: Res<A
         timer: Timer::new(Duration::from_secs(1), TimerMode::Repeating),
     });
 
-    let Some(file) = config.avatar.path.file_name() else {
-        error!("avatar path {} has no file name", config.avatar.path.display());
-        return;
-    };
-    let path = AssetPath::from_path(Path::new(file)).into_owned().with_source(AssetSourceId::from(SOURCE));
+    let Some(path) = model_asset_path(&config.avatar.path) else { return };
     info!("loading {}", config.avatar.path.display());
     commands
         .spawn((
@@ -227,14 +213,6 @@ fn base_name(name: &str) -> &str {
         Some((base, digits)) if !base.is_empty() && !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) => base,
         _ => name,
     }
-}
-
-pub(super) type TransformTree<'w, 's> = Query<'w, 's, (&'static Transform, Option<&'static ChildOf>, Has<AvatarRoot>)>;
-
-fn pose_bone(entity: Entity, tree: &TransformTree) -> Option<PoseBone> {
-    let (transform, parent, _) = tree.get(entity).ok()?;
-    let parent_space = parent.map(|p| avatar_space(p.parent(), tree)).unwrap_or(Affine3A::IDENTITY);
-    Some(PoseBone::new(entity, *transform, parent_space))
 }
 
 fn resolve_avatar(
@@ -285,10 +263,7 @@ fn resolve_avatar(
         info!("humanoid bones not mapped: {}", missing.join(", "));
     }
 
-    // Height and floor from the joint positions of all nodes (avatar space).
-    let ys: Vec<f32> = nodes.values().filter_map(|&e| pose_bone(e, &tree)).map(|b| b.position.y).collect();
-    humanoid.floor = ys.iter().copied().fold(f32::MAX, f32::min);
-    humanoid.height = ys.iter().copied().fold(f32::MIN, f32::max) - humanoid.floor;
+    humanoid.set_extent(nodes.values().copied(), &tree);
 
     let parts = Parts {
         bones: mapping.parts.iter().filter_map(|(part, node)| Some((part.clone(), lookup(node)?))).collect(),
