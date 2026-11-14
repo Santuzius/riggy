@@ -1,9 +1,10 @@
-//! Camera, lights and the figure's turn. Once the avatar's meshes are in place the camera frames the whole figure, with the lowest sole as seen on the window's bottom edge, so on the desktop the figure stands on the panel; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face, which follows the eyes. The figure turns (see `animation::stance`) as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
+//! Camera, lights and the figure's turn. The camera projects orthographically, so the floor is seen edge-on: every point on it, near or far, lies on one line of the window, as on a panel. Once the avatar's meshes are in place the camera frames the whole figure with the lowest sole on the window's bottom edge, so on the desktop the figure stands on the panel; the mouse wheel or the control socket's `zoom` moves it between that full view and a close-up of the face, which follows the eyes. The figure turns (see `animation::stance`) as `[window] turn` says, while the right mouse button drags it, or on the control socket's `turn`. On the desktop the zoom and turn made with the mouse are kept for the next start.
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
 use bevy::mesh::VertexAttributeValues;
+use bevy::camera::ScalingMode;
 use bevy::prelude::*;
 use bevy::window::CursorMoved;
 
@@ -23,6 +24,8 @@ const FACE_HEIGHT: f32 = 0.32;
 const TURN_PER_PIXEL: f32 = 0.5;
 /// Seconds after the last wheel step at which the zoom is kept, so one turn of the wheel writes the settings once.
 const ZOOM_SETTLE: f32 = 0.5;
+/// Metres between the camera and what it looks at; with an orthographic projection only the clipping depends on it.
+const CAMERA_DISTANCE: f32 = 20.0;
 /// Height in metres above the lowest vertex up to which vertices count as soles.
 const SOLE_HEIGHT: f32 = 0.02;
 /// Seconds the camera takes to follow the soles after a step.
@@ -77,7 +80,11 @@ fn setup(mut commands: Commands, config: Res<Config>) {
         zoom: config.window.zoom.clamp(0.0, 1.0),
         ..default()
     };
-    commands.spawn((Camera3d::default(), framing, Transform::from_xyz(0.0, 1.0, 4.0)));
+    let projection = OrthographicProjection {
+        scaling_mode: ScalingMode::FixedVertical { viewport_height: 2.0 },
+        ..OrthographicProjection::default_3d()
+    };
+    commands.spawn((Camera3d::default(), Projection::Orthographic(projection), framing, Transform::from_xyz(0.0, 1.0, CAMERA_DISTANCE)));
     // Key light from the front left above, fill from the right, rim from behind.
     commands.spawn((
         DirectionalLight {
@@ -179,24 +186,15 @@ fn frame_avatar(
     });
 }
 
-/// Keeps the lowest sole as seen on the bottom edge of the full shot. In perspective the soles nearer the camera appear lower and those further away higher, so a turn or a step changes which one that is; while a foot is in the air the shift stays.
-fn ground(time: Res<Time>, mut cameras: Query<(&mut Framing, &Projection)>, stances: Query<&Stance>, transforms: Query<&GlobalTransform>) {
-    let Ok((mut framing, projection)) = cameras.single_mut() else { return };
-    let (Some(full), Projection::Perspective(perspective)) = (framing.full, projection) else { return };
+/// Keeps the lowest sole on the bottom edge of the full shot, so a sole that sits a little higher or lower after a turn or a step still touches it; while a foot is in the air the shift stays.
+fn ground(time: Res<Time>, mut cameras: Query<&mut Framing>, stances: Query<&Stance>, transforms: Query<&GlobalTransform>) {
+    let Ok(mut framing) = cameras.single_mut() else { return };
+    let Some(full) = framing.full else { return };
     if stances.iter().any(Stance::stepping) {
         return;
     }
-    let distance = full.height / 2.0 / (perspective.fov / 2.0).tan();
-    let camera_z = full.target.z + distance;
-    let seen_lowest = framing
-        .soles
-        .iter()
-        .map(|v| position(v, &transforms))
-        .filter(|v| v.z < camera_z)
-        .map(|v| full.target.y + (v.y - full.target.y) * distance / (camera_z - v.z))
-        .reduce(f32::min);
-    let Some(seen) = seen_lowest else { return };
-    let wanted = seen - (full.target.y - full.height / 2.0);
+    let Some(lowest) = framing.soles.iter().map(|v| position(v, &transforms).y).reduce(f32::min) else { return };
+    let wanted = lowest - (full.target.y - full.height / 2.0);
     let k = 1.0 - (-time.delta_secs() / GROUND_TIME).exp();
     framing.ground = Some(framing.ground.map_or(wanted, |now| now + (wanted - now) * k));
 }
@@ -342,17 +340,17 @@ fn zoom(
 }
 
 /// Places the camera in front of the avatar (+Z) so the current shot fills the window height.
-fn place_camera(mut cameras: Query<(&Framing, &Projection, &mut Transform)>) {
-    let Ok((framing, projection, mut transform)) = cameras.single_mut() else { return };
+fn place_camera(mut cameras: Query<(&Framing, &mut Projection, &mut Transform)>) {
+    let Ok((framing, mut projection, mut transform)) = cameras.single_mut() else { return };
     let (Some(mut full), Some(face)) = (framing.full, framing.face) else { return };
     full.target.y += framing.ground.unwrap_or(0.0);
-    let Projection::Perspective(perspective) = projection else { return };
+    let Projection::Orthographic(orthographic) = &mut *projection else { return };
     // Ease so that equal wheel steps feel like equal zoom steps.
     let t = framing.zoom;
     let height = full.height * (face.height / full.height).powf(t);
     let target = full.target.lerp(face.target, ((full.height - height) / (full.height - face.height).max(1e-6)).clamp(0.0, 1.0));
-    let distance = height / 2.0 / (perspective.fov / 2.0).tan();
-    *transform = Transform::from_translation(target + Vec3::Z * distance).looking_at(target, Vec3::Y);
+    orthographic.scaling_mode = ScalingMode::FixedVertical { viewport_height: height };
+    *transform = Transform::from_translation(target + Vec3::Z * CAMERA_DISTANCE).looking_at(target, Vec3::Y);
 }
 
 #[cfg(test)]
