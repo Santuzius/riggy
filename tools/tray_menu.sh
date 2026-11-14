@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tools/tray_menu.sh [LABEL]: prints the menu of the running riggy-tray, or clicks the entry labelled exactly LABEL (through D-Bus, as the panel would).
-S=$(busctl --user list --no-legend | awk '{print $1}' | while read -r name; do pid=$(busctl --user status "$name" 2>/dev/null | sed -n "s/^PID=//p"); [ "$(cat /proc/$pid/comm 2>/dev/null)" = riggy-tray ] && [[ $name == org.kde.StatusNotifierItem-* ]] && echo "$name"; done | head -1)
+S=$(busctl --user list --no-legend | awk '{print $1}' | while read -r name; do pid=$(busctl --user status "$name" 2>/dev/null | sed -n "s/^PID=//p"); tr "\0" " " < /proc/$pid/cmdline 2>/dev/null | grep -q "riggy-tray" && [[ $name == org.kde.StatusNotifierItem-* ]] && echo "$name"; done | head -1)
 [ -n "$S" ] || { echo "riggy-tray is not running"; exit 1; }
 set -- "$S" "$@"
 layout=$(busctl --user --json=short call $S /MenuBar com.canonical.dbusmenu GetLayout iias 0 -- -1 1 label)
