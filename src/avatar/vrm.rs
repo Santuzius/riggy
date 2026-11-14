@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::Face;
 use bevy_vrm1::prelude::{Initialized, MToonMaterial, OutlineWidthMode, SetExpressions, VrmBone, VrmExpression, VrmHandle, VrmPlugin};
 
-use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
+use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, ExpressionPreset, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
 use crate::config::{AvatarKind, Config};
 
 /// Backend state on the avatar root.
@@ -87,12 +87,20 @@ fn reset_bones(rigs: Query<&VrmRig>, mut transforms: Query<&mut Transform>) {
     }
 }
 
+/// The VRM expression for riggy's `name`. Riggy's `happy` is the idle smile with the mouth closed; VRM's `happy` (VRoid's "Joy") laughs with an open mouth, its `relaxed` smiles with it closed.
+fn vrm_expression(name: &ExpressionName) -> VrmExpression {
+    match name {
+        ExpressionName::Preset(ExpressionPreset::Happy) => VrmExpression::from(ExpressionPreset::Relaxed.as_str()),
+        name => VrmExpression(name.to_string()),
+    }
+}
+
 fn apply_expressions(mut commands: Commands, mut rigs: Query<(Entity, &mut VrmRig, &Expressions)>) {
     for (entity, mut rig, expressions) in &mut rigs {
         if rig.sent == expressions.weights {
             continue;
         }
         rig.sent.clone_from(&expressions.weights);
-        commands.trigger(SetExpressions::from_iter(entity, expressions.weights.iter().map(|(name, &weight)| (VrmExpression(name.to_string()), weight))));
+        commands.trigger(SetExpressions::from_iter(entity, expressions.weights.iter().map(|(name, &weight)| (vrm_expression(name), weight))));
     }
 }
