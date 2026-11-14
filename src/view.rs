@@ -2,6 +2,8 @@
 
 use bevy::camera::primitives::{Aabb, Sphere};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
+use bevy::mesh::skinning::{SkinnedMesh, SkinnedMeshInverseBindposes};
+use bevy::mesh::VertexAttributeValues;
 use bevy::prelude::*;
 
 use crate::avatar::{AvatarRoot, Humanoid, HumanoidBone};
@@ -74,22 +76,26 @@ fn setup(mut commands: Commands, config: Res<Config>) {
 
 /// Sets the full-figure framing from the mesh bounds once they exist, and the face framing from the humanoid's head.
 fn frame_avatar(
-    mut cameras: Query<&mut Framing>,
+    mut cameras: Query<(&mut Framing, &Projection)>,
     avatars: Query<(Entity, &GlobalTransform, Option<&Humanoid>), With<AvatarRoot>>,
     children: Query<&Children>,
-    meshes: Query<(&GlobalTransform, Option<&Aabb>), With<Mesh3d>>,
+    meshes: Query<(&GlobalTransform, Option<&Aabb>, &Mesh3d, Option<&SkinnedMesh>)>,
+    mesh_assets: Res<Assets<Mesh>>,
+    bindposes: Res<Assets<SkinnedMeshInverseBindposes>>,
+    joints: Query<&GlobalTransform>,
 ) {
-    let Ok(mut framing) = cameras.single_mut() else { return };
+    let Ok((mut framing, projection)) = cameras.single_mut() else { return };
     if framing.full.is_some() {
         return;
     }
+    let Projection::Perspective(perspective) = projection else { return };
     let Ok((root, root_transform, humanoid)) = avatars.single() else { return };
 
     let mut min = Vec3A::splat(f32::MAX);
     let mut max = Vec3A::splat(f32::MIN);
     let mut count = 0;
     for entity in children.iter_descendants(root) {
-        let Ok((transform, aabb)) = meshes.get(entity) else { continue };
+        let Ok((transform, aabb, _, _)) = meshes.get(entity) else { continue };
         // Bounds appear a frame after the mesh; wait until all are there.
         let Some(aabb) = aabb else { return };
         let sphere = Sphere {
@@ -116,10 +122,23 @@ fn frame_avatar(
     let center = Vec3::new((min.x + max.x) / 2.0, (bottom + top) / 2.0, (min.z + max.z) / 2.0);
     // The feet stand on the window's bottom edge, so on the desktop the figure stands on the panel; the margin stays above the head.
     let height = (top - bottom) * (1.0 + MARGIN);
-    let full = Shot {
-        target: Vec3::new(center.x, bottom + height / 2.0, center.z),
-        height,
-    };
+    let mut target = Vec3::new(center.x, bottom + height / 2.0, center.z);
+    // In perspective the soles nearer the camera than the target appear lower and those further away higher; shift the view so that the lowest one as seen touches the edge.
+    let vertices: Vec<Vec3> = children
+        .iter_descendants(root)
+        .filter_map(|e| {
+            let (transform, _, mesh, skin) = meshes.get(e).ok()?;
+            Some(world_vertices(mesh_assets.get(&mesh.0)?, transform, skin.map(|s| (s, &*bindposes, &joints))))
+        })
+        .flatten()
+        .collect();
+    let distance = height / 2.0 / (perspective.fov / 2.0).tan();
+    let camera_z = target.z + distance;
+    let seen_lowest = vertices.iter().filter(|v| v.z < camera_z).map(|v| target.y + (v.y - target.y) * distance / (camera_z - v.z)).reduce(f32::min);
+    if let Some(seen) = seen_lowest {
+        target.y += seen - (target.y - height / 2.0);
+    }
+    let full = Shot { target, height };
     info!("avatar bounds: {:.2} m high, centre {:.2?}", top - bottom, center);
     framing.full = Some(full);
 
@@ -135,6 +154,29 @@ fn frame_avatar(
         target: face.unwrap_or(center),
         height: FACE_HEIGHT.min(full.height),
     });
+}
+
+/// A mesh's vertices in world space, skinned with the joints' current transforms.
+fn world_vertices(mesh: &Mesh, transform: &GlobalTransform, skin: Option<(&SkinnedMesh, &Assets<SkinnedMeshInverseBindposes>, &Query<&GlobalTransform>)>) -> Vec<Vec3> {
+    let Some(VertexAttributeValues::Float32x3(positions)) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else { return Vec::new() };
+    let skinning = skin.and_then(|(skin, bindposes, joints)| {
+        let inverse = bindposes.get(&skin.inverse_bindposes)?;
+        let matrices: Vec<Mat4> = skin.joints.iter().zip(inverse.iter()).map(|(&joint, ibm)| Some(joints.get(joint).ok()?.to_matrix() * *ibm)).collect::<Option<_>>()?;
+        let Some(VertexAttributeValues::Uint16x4(indices)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_INDEX) else { return None };
+        let Some(VertexAttributeValues::Float32x4(weights)) = mesh.attribute(Mesh::ATTRIBUTE_JOINT_WEIGHT) else { return None };
+        Some((matrices, indices, weights))
+    });
+    positions
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| {
+            let p = Vec3::from(p);
+            match &skinning {
+                Some((matrices, indices, weights)) => (0..4).map(|k| matrices[indices[i][k] as usize].transform_point3(p) * weights[i][k]).sum(),
+                None => transform.transform_point(p),
+            }
+        })
+        .collect()
 }
 
 fn zoom(mut wheel: MessageReader<MouseWheel>, mut cameras: Query<&mut Framing>) {
