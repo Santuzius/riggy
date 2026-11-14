@@ -18,17 +18,21 @@ impl Plugin for MouthPlugin {
 
 /// Target weight of each viseme, in the order of `ExpressionPreset::VISEMES`.
 #[derive(Resource, Default)]
-pub struct MouthTarget(pub [f32; 5]);
+pub struct MouthTarget {
+    pub weights: [f32; 5],
+    /// The weights come from Rhubarb cues: discrete shapes that are followed with `[lipsync] cue_time` both ways, so short closures (m, b, p) show.
+    pub cued: bool,
+}
 
 fn debug_keys(keys: Res<ButtonInput<KeyCode>>, mut target: ResMut<MouthTarget>) {
     const KEYS: [KeyCode; 5] = [KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3, KeyCode::Digit4, KeyCode::Digit5];
     if keys.just_pressed(KeyCode::Digit0) {
-        target.0 = [0.0; 5];
+        *target = MouthTarget::default();
     }
     for (i, key) in KEYS.into_iter().enumerate() {
         if keys.just_pressed(key) {
-            target.0 = [0.0; 5];
-            target.0[i] = 1.0;
+            *target = MouthTarget::default();
+            target.weights[i] = 1.0;
         }
     }
 }
@@ -36,13 +40,18 @@ fn debug_keys(keys: Res<ButtonInput<KeyCode>>, mut target: ResMut<MouthTarget>) 
 /// Cheek raise per unit of the "ee" and "ih" weights.
 const CHEEKS_PER_VISEME: [f32; 5] = [0.0, 0.4, 0.0, 1.0, 0.0];
 
-/// Moves the current weights towards the target with a first-order lag: `time_constant` while a weight rises, the slower `release_time` while it falls, as a jaw opens quickly and closes more slowly.
+/// Moves the current weights towards the target with a first-order lag: `time_constant` while a weight rises, the slower `release_time` while it falls, as a jaw opens quickly and closes more slowly; `[lipsync] cue_time` both ways for Rhubarb cues.
 ///
 /// The custom expression `cheeks` follows the spread shapes with the much slower `cheek_time`: cheeks are pushed up by the held lip shape, not by each syllable.
 fn mouth(time: Res<Time>, config: Res<Config>, target: Res<MouthTarget>, mut current: Local<[f32; 5]>, mut cheeks: Local<f32>, mut avatars: Query<&mut Expressions, With<Humanoid>>) {
     let gain = |tau: f32| 1.0 - (-time.delta_secs() / tau.max(1e-3)).exp();
-    let (rise, fall) = (gain(config.mouth.time_constant), gain(config.mouth.release_time));
-    for (w, t) in current.iter_mut().zip(target.0) {
+    let (rise, fall) = if target.cued {
+        let k = gain(config.lipsync.cue_time);
+        (k, k)
+    } else {
+        (gain(config.mouth.time_constant), gain(config.mouth.release_time))
+    };
+    for (w, t) in current.iter_mut().zip(target.weights) {
         *w += (t - *w) * if t > *w { rise } else { fall };
     }
     let cheek_target: f32 = current.iter().zip(CHEEKS_PER_VISEME).map(|(w, c)| w * c).sum();

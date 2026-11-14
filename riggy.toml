@@ -1,4 +1,4 @@
-# riggy settings; changes to [idle], [blink], [mouth] and [debug] apply while running.
+# riggy settings; changes to [idle], [blink], [mouth], [lipsync] and [debug] apply while running.
 
 [avatar]
 kind = "glb"
@@ -38,6 +38,13 @@ pause_hold = 0.4
 silence_level = 0.01
 loud_level = 0.12
 audio_latency = 0.0
+
+# Lip sync: "sound" follows loudness and spectrum and speaks at once; "rhubarb" uses Rhubarb Lip Sync's mouth shapes (closed lips on m, b, p) and starts speaking about 2 s later. F3 switches while running; changes apply to the next utterance. recognizer: "phonetic" (any language) or "pocketSphinx" (English only, slower than real time). cue_time: seconds the mouth takes to follow a Rhubarb shape.
+[lipsync]
+mode = "sound"
+rhubarb = "rhubarb"
+recognizer = "phonetic"
+cue_time = 0.05
 
 # Speech socket; empty means $XDG_RUNTIME_DIR/riggy.sock (applies at startup).
 [speech]

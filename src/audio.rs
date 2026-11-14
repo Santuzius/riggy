@@ -11,6 +11,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
 
 use crate::lipsync::{Analyzer, Measure};
+use crate::rhubarb::{self, Cue, MouthCue};
 
 /// Audio that waits before playback starts, so a slow TTS stream does not stutter.
 const PREBUFFER_SECONDS: f32 = 0.2;
@@ -19,16 +20,41 @@ const MAX_FRAMES: usize = 200;
 
 /// One spoken text as mono samples, filled while it arrives.
 pub struct Utterance {
+    pub id: u64,
     pub rate: u32,
     pub samples: Vec<f32>,
     /// All samples have arrived.
     pub finished: bool,
     started: bool,
+    /// Playback waits for Rhubarb's first cues.
+    pub wants_cues: bool,
+    /// Rhubarb mouth shapes, sorted by start.
+    pub cues: Vec<Cue>,
+    /// Samples analysed by Rhubarb so far.
+    pub cued_until: usize,
+    pub cue_failed: bool,
 }
 
 impl Utterance {
-    pub fn new(rate: u32) -> Self {
-        Self { rate, samples: Vec::new(), finished: false, started: false }
+    pub fn new(id: u64, rate: u32, wants_cues: bool) -> Self {
+        Self {
+            id,
+            rate,
+            samples: Vec::new(),
+            finished: false,
+            started: false,
+            wants_cues,
+            cues: Vec::new(),
+            cued_until: 0,
+            cue_failed: false,
+        }
+    }
+
+    /// Ready to play: enough audio is buffered and, when cues are wanted, the first piece has them (or Rhubarb gave up).
+    fn ready(&self) -> bool {
+        let buffered = self.finished || self.samples.len() as f32 >= self.rate as f32 * PREBUFFER_SECONDS;
+        let cued = !self.wants_cues || self.cue_failed || self.cued_until > 0 || (self.finished && self.samples.is_empty());
+        buffered && cued
     }
 }
 
@@ -37,8 +63,10 @@ impl Utterance {
 pub struct Frame {
     pub at: Instant,
     pub measure: Measure,
-    /// An utterance was playing (or waiting for data) in this window.
+    /// An utterance was playing (or stalled waiting for data) in this window.
     pub active: bool,
+    /// Rhubarb's mouth shape at the window's centre, where cues exist.
+    pub cue: Option<MouthCue>,
 }
 
 /// State shared by the socket thread (fills `queue`), the audio thread and the lip-sync system (reads `frames`).
@@ -46,6 +74,8 @@ pub struct Frame {
 pub struct Shared {
     pub queue: Mutex<VecDeque<Utterance>>,
     pub frames: Mutex<VecDeque<Frame>>,
+    /// Lip sync for new utterances: Rhubarb with these settings, or sound-driven only (`None`).
+    pub rhubarb: Mutex<Option<rhubarb::Settings>>,
 }
 
 /// Opens the default output device on its own thread, which keeps the stream alive for the program's lifetime.
@@ -83,7 +113,7 @@ fn build<T: SizedSample + FromSample<f32>>(device: &cpal::Device, config: Stream
     let mut player = Player::default();
     let mut analyzer = Analyzer::new(rate);
     let half_window = analyzer.window_seconds() / 2.0;
-    let mut measures: Vec<(usize, Measure, bool)> = Vec::with_capacity(64);
+    let mut measures: Vec<(usize, Measure, bool, Option<MouthCue>)> = Vec::with_capacity(64);
 
     let callback = move |data: &mut [T], info: &OutputCallbackInfo| {
         let timestamp = info.timestamp();
@@ -96,17 +126,17 @@ fn build<T: SizedSample + FromSample<f32>>(device: &cpal::Device, config: Stream
                 let (value, active) = player.next(&mut queue, rate);
                 frame.fill(T::from_sample(value));
                 if let Some(measure) = analyzer.push(value) {
-                    measures.push((i, measure, active));
+                    measures.push((i, measure, active, player.cue(&queue, half_window)));
                 }
             }
         }
 
         let mut frames = shared.frames.lock().unwrap();
-        for &(i, measure, active) in &measures {
+        for &(i, measure, active, cue) in &measures {
             // The window ends at sample i; it is heard best at its centre.
             let offset = i as f32 / rate as f32 - half_window;
             let at = if offset >= 0.0 { start + Duration::from_secs_f32(offset) } else { start - Duration::from_secs_f32(-offset) };
-            frames.push_back(Frame { at, measure, active });
+            frames.push_back(Frame { at, measure, active, cue });
         }
         let excess = frames.len().saturating_sub(MAX_FRAMES);
         frames.drain(..excess);
@@ -125,9 +155,10 @@ impl Player {
     fn next(&mut self, queue: &mut VecDeque<Utterance>, rate: u32) -> (f32, bool) {
         while let Some(utterance) = queue.front_mut() {
             if !utterance.started {
-                utterance.started = utterance.finished || utterance.samples.len() as f32 >= utterance.rate as f32 * PREBUFFER_SECONDS;
+                utterance.started = utterance.ready();
                 if !utterance.started {
-                    return (0.0, true);
+                    // Waiting before the start counts as silence; only a stall mid-utterance counts as speaking.
+                    return (0.0, false);
                 }
             }
             let i = self.position as usize;
@@ -146,6 +177,13 @@ impl Player {
         }
         (0.0, false)
     }
+
+    /// Rhubarb's mouth shape `back` seconds before the current read position in the front utterance.
+    fn cue(&self, queue: &VecDeque<Utterance>, back: f32) -> Option<MouthCue> {
+        let utterance = queue.front().filter(|u| u.started)?;
+        let position = self.position - (back * utterance.rate as f32) as f64;
+        (position >= 0.0).then(|| rhubarb::cue_at(&utterance.cues, utterance.cued_until, position as usize)).flatten()
+    }
 }
 
 #[cfg(test)]
@@ -155,10 +193,10 @@ mod tests {
     #[test]
     fn plays_utterances_in_order_and_resamples() {
         let mut queue = VecDeque::new();
-        let mut first = Utterance::new(24_000);
+        let mut first = Utterance::new(0, 24_000, false);
         first.samples = vec![0.0, 1.0, 0.0];
         first.finished = true;
-        let mut second = Utterance::new(48_000);
+        let mut second = Utterance::new(1, 48_000, false);
         second.samples = vec![0.5, 0.5];
         second.finished = true;
         queue.extend([first, second]);
@@ -171,11 +209,21 @@ mod tests {
     }
 
     #[test]
+    fn waits_for_the_first_cues() {
+        let mut queue = VecDeque::from([Utterance::new(0, 24_000, true)]);
+        queue[0].samples = vec![0.3; 24_000];
+        let mut player = Player::default();
+        assert_eq!(player.next(&mut queue, 24_000), (0.0, false));
+        queue[0].cued_until = 12_000;
+        assert_eq!(player.next(&mut queue, 24_000), (0.3, true));
+    }
+
+    #[test]
     fn waits_for_the_prebuffer() {
-        let mut queue = VecDeque::from([Utterance::new(24_000)]);
+        let mut queue = VecDeque::from([Utterance::new(0, 24_000, false)]);
         queue[0].samples = vec![0.3; 100];
         let mut player = Player::default();
-        assert_eq!(player.next(&mut queue, 24_000), (0.0, true));
+        assert_eq!(player.next(&mut queue, 24_000), (0.0, false));
         queue[0].finished = true;
         assert_eq!(player.next(&mut queue, 24_000), (0.3, true));
     }

@@ -12,7 +12,7 @@ riggy re-reads its config and the avatar's mapping file about once a second whil
 
 | File | Applied live | Needs a restart |
 |---|---|---|
-| `riggy.toml` | `[idle]`, `[blink]`, `[mouth]`, `[debug]` | `[avatar]`, `[window]`, `[speech]` |
+| `riggy.toml` | `[idle]`, `[blink]`, `[mouth]`, `[lipsync]`, `[debug]` | `[avatar]`, `[window]`, `[speech]` |
 | mapping (`assets/avatars/*.toml`) | `[rest]`, `[expressions.*]`, `[[props]]` | `scale`, `[humanoid]`, `[parts]` |
 
 So poses, mouth shapes and props can be tuned in the editor while the window shows the result.
@@ -24,6 +24,7 @@ So poses, mouth shapes and props can be tuned in the editor while the window sho
 | Mouse wheel | zoom between the full figure and the face |
 | `1`–`5` | hold one mouth shape: `aa`, `ih`, `ou`, `ee`, `oh` |
 | `0` | mouth back to rest |
+| `F3` | switch lip sync between `sound` and `rhubarb` (next utterance) |
 | `F1` | print the model's node tree with avatar-space joint positions to the log |
 
 - `RIGGY_DUMP_NODES=1` prints the same node tree once right after loading, without a key press. Positions are in model units (mm for the cyborg girl) in avatar space: +Y up, +Z the way the figure faces, +X its left. Use them to choose pivots and translation directions for the mapping file.
@@ -59,6 +60,8 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 - A PCM file for repeatable tests: `curl -s -X POST http://127.0.0.1:8902/v1/audio/speech -H 'Content-Type: application/json' -d '{"voice":"serena","input":"See. Me. Tea.","language":"English","response_format":"pcm","seed":2}' -o temp/ee.pcm`
 - `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync.rs` come from such runs over one test word list per vowel.
 - `[mouth]` tunes the motion live: `time_constant` and `release_time` set how fast the mouth opens and closes, `shape_time` how fast it changes from one shape to another (quiet syllables change it less), `cheek_time` how slowly the cheeks follow the spread shapes, `pause_opening` and `pause_hold` how far it stays open in short pauses between words and for how long.
+- F3 switches between the `sound` and `rhubarb` lip-sync modes for the next utterance; the log confirms the mode. In `rhubarb` mode the log shows the analysis time per piece, and at the end of speech how much of it Rhubarb's cues drove (the rest fell back to the sound-driven mode).
+- `nix build .#rhubarb` builds the packaged Rhubarb alone, e.g. to try it on a WAV file: `rhubarb -r phonetic -f json speech.wav`.
 - The log shows `speech started` and `speech ended` from the lip-sync clock, and `audio output: … Hz` once the sound device is open.
 
 ## Model preparation

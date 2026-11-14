@@ -17,7 +17,42 @@ pub struct Config {
     pub blink: BlinkConfig,
     pub mouth: MouthConfig,
     pub speech: SpeechConfig,
+    pub lipsync: LipsyncConfig,
     pub debug: DebugConfig,
+}
+
+#[derive(Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LipsyncMode {
+    /// From loudness and spectrum while the sound plays; speech starts at once.
+    #[default]
+    Sound,
+    /// From Rhubarb Lip Sync's mouth shapes; speech starts about 1–2 s later.
+    Rhubarb,
+}
+
+/// Which lip sync drives the mouth; applies to the next utterance (F3 toggles the mode while running).
+#[derive(Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct LipsyncConfig {
+    pub mode: LipsyncMode,
+    /// The `rhubarb` program (from the Nix shell, or a path).
+    pub rhubarb: PathBuf,
+    /// Rhubarb's recognizer: `phonetic` (any language) or `pocketSphinx` (English only, slower than real time).
+    pub recognizer: String,
+    /// Time constant in seconds with which the mouth follows Rhubarb's shapes.
+    pub cue_time: f32,
+}
+
+impl Default for LipsyncConfig {
+    fn default() -> Self {
+        Self {
+            mode: LipsyncMode::Sound,
+            rhubarb: "rhubarb".into(),
+            recognizer: "phonetic".into(),
+            cue_time: 0.05,
+        }
+    }
 }
 
 /// Tuning aids.

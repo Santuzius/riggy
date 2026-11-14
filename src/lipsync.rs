@@ -118,6 +118,7 @@ fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 }
 
 /// Viseme weights in the order of `ExpressionPreset::VISEMES` (aa, ih, ou, ee, oh): the [`shape`] scaled by the [`opening`].
+#[allow(dead_code)] // used by examples/lipsync.rs and the tests
 pub fn visemes(m: &Measure, silence: f32, loud: f32) -> [f32; 5] {
     let open = opening(m, silence, loud);
     shape(m).map(|w| w * open)

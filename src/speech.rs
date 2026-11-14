@@ -10,6 +10,7 @@ use std::io::{self, BufRead, BufReader, Read};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use bevy::prelude::*;
@@ -17,9 +18,10 @@ use serde::Deserialize;
 
 use crate::audio::{self, Shared, Utterance};
 use crate::avatar::AvatarSet;
-use crate::config::Config;
+use crate::config::{Config, LipsyncConfig, LipsyncMode};
 use crate::lipsync;
 use crate::mouth::MouthTarget;
+use crate::rhubarb;
 
 pub struct SpeechPlugin;
 
@@ -28,7 +30,9 @@ impl Plugin for SpeechPlugin {
         let shared = Arc::new(Shared::default());
         audio::start(shared.clone());
         listen(app.world().resource::<Config>().speech.socket_path(), shared.clone());
-        app.insert_resource(Feed(shared)).init_resource::<Voice>().add_systems(Update, lip_sync.before(AvatarSet::Express));
+        app.insert_resource(Feed(shared))
+            .init_resource::<Voice>()
+            .add_systems(Update, (lipsync_mode, lip_sync.before(AvatarSet::Express)));
     }
 }
 
@@ -57,6 +61,29 @@ impl Default for Header {
     }
 }
 
+/// Applies `[lipsync]` from the config when it changes; F3 switches between the sound-driven and the Rhubarb mode until the next change.
+fn lipsync_mode(feed: Res<Feed>, config: Res<Config>, keys: Res<ButtonInput<KeyCode>>, mut applied: Local<Option<LipsyncConfig>>, mut mode: Local<LipsyncMode>) {
+    let mut changed = false;
+    if applied.as_ref() != Some(&config.lipsync) {
+        *applied = Some(config.lipsync.clone());
+        *mode = config.lipsync.mode;
+        changed = true;
+    }
+    if keys.just_pressed(KeyCode::F3) {
+        *mode = match *mode {
+            LipsyncMode::Sound => LipsyncMode::Rhubarb,
+            LipsyncMode::Rhubarb => LipsyncMode::Sound,
+        };
+        changed = true;
+    }
+    if !changed {
+        return;
+    }
+    let settings = (*mode == LipsyncMode::Rhubarb).then(|| rhubarb::Settings { program: config.lipsync.rhubarb.clone(), recognizer: config.lipsync.recognizer.clone() });
+    *feed.0.rhubarb.lock().unwrap() = settings;
+    info!("lip sync for the next utterance: {:?}", *mode);
+}
+
 /// Without a measure for this long, the audio thread has stopped and riggy counts as silent.
 const STALE: Duration = Duration::from_millis(200);
 
@@ -69,11 +96,14 @@ struct LipState {
     shape: [f32; 5],
     /// Start of the current quiet stretch within speech.
     quiet_since: Option<Instant>,
+    /// Measures of the current speech, and how many of them had a Rhubarb cue.
+    frames: u32,
+    cued_frames: u32,
 }
 
 /// Sets the mouth from the measures heard up to now; leaves it alone while nothing plays, so the debug keys still work.
 ///
-/// The opening follows the loudness of each measure, while the shape follows the sound only with the lag `[mouth] shape_time`, scaled by the opening: a single 10 ms window decides the shape poorly, real lips glide between vowel shapes, and loud stressed vowels shape the lips more than weak syllables such as the "e" in "the". Speakers rarely close the mouth between words: in a quiet stretch shorter than `pause_hold` the shape stays open at `pause_opening`.
+/// With Rhubarb cues the mouth takes each cue's shape directly. Otherwise the opening follows the loudness of each measure, while the shape follows the sound only with the lag `[mouth] shape_time`, scaled by the opening: a single 10 ms window decides the shape poorly, real lips glide between vowel shapes, and loud stressed vowels shape the lips more than weak syllables such as the "e" in "the". Speakers rarely close the mouth between words: in a quiet stretch shorter than `pause_hold` the shape stays open at `pause_opening`.
 fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut target: ResMut<MouthTarget>, mut state: Local<LipState>) {
     let now = Instant::now();
     let heard = now.checked_sub(Duration::from_secs_f32(config.mouth.audio_latency.max(0.0))).unwrap_or(now);
@@ -91,6 +121,13 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
             if !frame.active {
                 continue;
             }
+            state.frames += 1;
+            state.cued_frames += frame.cue.is_some() as u32;
+            if let Some(cue) = frame.cue {
+                *target = MouthTarget { weights: cue.visemes(), cued: true };
+                continue;
+            }
+            target.cued = false;
             let open = lipsync::opening(&frame.measure, mouth.silence_level, mouth.loud_level);
             let open = if open > 0.0 {
                 state.quiet_since = None;
@@ -104,7 +141,7 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
                 let since = *state.quiet_since.get_or_insert(frame.at);
                 if (frame.at - since).as_secs_f32() < mouth.pause_hold { mouth.pause_opening } else { 0.0 }
             };
-            target.0 = state.shape.map(|w| w * open);
+            target.weights = state.shape.map(|w| w * open);
         }
     }
 
@@ -115,9 +152,9 @@ fn lip_sync(feed: Res<Feed>, config: Res<Config>, mut voice: ResMut<Voice>, mut 
         voice.level = 0.0;
     }
     if was_speaking && !voice.speaking {
-        target.0 = [0.0; 5];
+        *target = MouthTarget::default();
+        info!("speech ended; Rhubarb cues drove {} % of it", 100 * state.cued_frames / state.frames.max(1));
         *state = LipState { last: state.last, ..default() };
-        info!("speech ended");
     }
     if !was_speaking && voice.speaking {
         info!("speech started");
@@ -153,7 +190,7 @@ fn listen(path: PathBuf, shared: Arc<Shared>) {
 }
 
 /// Reads one utterance and queues its samples as they arrive.
-fn receive(stream: UnixStream, shared: &Shared) -> io::Result<()> {
+fn receive(stream: UnixStream, shared: &Arc<Shared>) -> io::Result<()> {
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
     reader.read_line(&mut line)?;
@@ -163,7 +200,13 @@ fn receive(stream: UnixStream, shared: &Shared) -> io::Result<()> {
     }
     info!("saying ({}): {}", header.language, header.text);
 
-    shared.queue.lock().unwrap().push_back(Utterance::new(header.rate));
+    static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    let settings = shared.rhubarb.lock().unwrap().clone();
+    shared.queue.lock().unwrap().push_back(Utterance::new(id, header.rate, settings.is_some()));
+    if let Some(settings) = settings {
+        rhubarb::start(shared.clone(), id, settings);
+    }
     let result = read_pcm(&mut reader, shared);
     if let Some(utterance) = shared.queue.lock().unwrap().back_mut() {
         utterance.finished = true;
