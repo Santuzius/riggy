@@ -2,18 +2,15 @@
 //!
 //! MToon shades by the direction of each directional light and ignores its strength, so a VRM avatar is lit by one key light (`view`). bevy_vrm1 draws no outline on a double-sided material (most of a VRoid model), so the outlined ones are made single-sided; the inside of a skirt then shows in the outline colour, as in VRoid Hub's viewer.
 //!
-//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; its own mapping file may set `window_height` and `[[rebind]]` (see [`rebind`]). Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
+//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; one next to it may set `window_height`. Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
 
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use bevy::gltf::GltfMaterialName;
-use bevy::mesh::skinning::SkinnedMesh;
 use bevy::render::render_resource::Face;
 use bevy_vrm1::vrm::spring_bone::{SpringCenterNode, SpringRoot};
 use bevy_vrm1::prelude::{Initialized, MToonMaterial, OutlineWidthMode, SetExpressions, VrmBone, VrmExpression, VrmHandle, VrmPlugin};
 
-use super::rebind::{self, VrmMapping};
 use super::{AvatarReady, AvatarRoot, AvatarSet, ExpressionName, ExpressionPreset, Expressions, Humanoid, HumanoidBone, PoseBone, TransformTree, model_asset_path, pose_bone};
 use crate::config::{AvatarKind, Config};
 
@@ -55,9 +52,6 @@ fn resolve_avatar(
     surfaces: Query<&MeshMaterial3d<MToonMaterial>>,
     mut materials: ResMut<Assets<MToonMaterial>>,
     mut springs: Query<&mut SpringRoot>,
-    primitives: Query<(&GltfMaterialName, &Mesh3d, &SkinnedMesh)>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    config: Res<Config>,
 ) {
     let root = ready.entity;
     follow_root(root, children.iter_descendants(root), &mut springs);
@@ -72,20 +66,9 @@ fn resolve_avatar(
         }
     }
     humanoid.set_extent(children.iter_descendants(root), &tree);
-    let mapping = read_mapping(&config.avatar.mapping);
-    rebind::apply(&mapping.rebind, &humanoid, children.iter_descendants(root).filter_map(|e| primitives.get(e).ok()), &mut meshes);
     info!("VRM avatar loaded: {} humanoid bones", humanoid.bones.len());
     let driven = humanoid.bones.values().copied().collect();
     commands.entity(root).insert((humanoid, VrmRig { driven, sent: HashMap::new() }, AvatarReady));
-}
-
-/// The avatar's own mapping file, empty if it has none.
-fn read_mapping(path: &std::path::Path) -> VrmMapping {
-    let Ok(text) = std::fs::read_to_string(path) else { return VrmMapping::default() };
-    toml::from_str(&text).unwrap_or_else(|err| {
-        error!("mapping {}: {err}", path.display());
-        VrmMapping::default()
-    })
 }
 
 /// Makes `root` the center of each spring chain that has none, so hair and cloth swing with the figure's own movement but not with its turn or its shift on the screen, which riggy gives the avatar root.

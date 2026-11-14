@@ -10,9 +10,8 @@ use std::path::{Path, PathBuf};
 /// The default settings, also built in for a riggy that runs without its data folder.
 const DEFAULT_CONFIG: &str = include_str!("../riggy.toml");
 /// Default mapping files built in, by model name.
-const DEFAULT_MAPPINGS: [(&str, &str); 3] = [
+const DEFAULT_MAPPINGS: [(&str, &str); 2] = [
     ("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml")),
-    ("cyber", include_str!("../assets/avatars/cyber.toml")),
     ("Ballytic813c_Reforged_ByLio3DW", include_str!("../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml")),
 ];
 
