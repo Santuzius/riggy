@@ -72,9 +72,9 @@ fn tool() -> Value {
             "type": "object",
             "properties": {
                 "text": { "type": "string", "description": "Plain text to speak." },
-                "language": { "type": "string", "enum": LANGUAGES, "description": "Language of the text. Default: German." },
+                "language": { "type": "string", "enum": LANGUAGES, "description": "Language of the text: the language of the message it summarises." },
             },
-            "required": ["text"],
+            "required": ["text", "language"],
         },
     })
 }
@@ -82,7 +82,9 @@ fn tool() -> Value {
 /// The status text for the agent; failing to speak must never look like a failed turn.
 fn speak(arguments: &Value, player: &Player) -> String {
     let text = arguments["text"].as_str().unwrap_or_default().trim();
-    let language = arguments["language"].as_str().unwrap_or("German");
+    let Some(language) = arguments["language"].as_str() else {
+        return format!("No language given. Use one of: {}.", LANGUAGES.join(", "));
+    };
     if text.is_empty() {
         return "Nothing to speak: text is empty.".into();
     }
