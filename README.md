@@ -1,97 +1,33 @@
-# riggy
+# Riggy
 
-A desktop mascot for Linux written in Rust with [Bevy](https://bevy.org): a rigged 3D figure that idles (breathing, blinking, slight sway) and moves its mouth in sync with speech from a local text-to-speech server.
+Bring your AI agent to life as a mascot figure or just use it in your creative project: an animated character living in your tray or on your desktop and speaking with a self-hosted TTS server.
 
-## Run
+> [!NOTE]
+> Built and tested only on Linux, KDE Plasma 6 and Nvidia T1000 4GB VRAM GPU: weak hardware, but almost instant high quality outputs in default configuration!
 
-```bash
-nix develop        # or `direnv allow` once
-cargo run
+## Screenshots 📷
+
+<img src="doc/images/riggy.png" alt="Riggy's default avatar, turned slightly to its left" width="250">
+
+<details><summary>License note of the avatar model on the screenshots</summary>
+["Cyborg girl" by 3dchmoshnik](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54), licensed under CC BY 4.0.
+</details>
+
+## Quick start 🚀
+
+### 0. Install/use Nix
+
+Riggy comes as a Nix flake. On NixOS, switch on flakes in your configuration:
+
+```nix
+nix.settings.experimental-features = [ "nix-command" "flakes" ];
 ```
 
-The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries (Vulkan, Wayland, X11, ALSA, udev) and the tools of the lip-sync modes (Rhubarb Lip Sync, eSpeak NG).
+On other Linux distributions, install Nix as described on [nixos.org/download](https://nixos.org/download/).
 
-The flake also builds riggy as a package with three programs: the avatar `riggy`, the tray icon `riggy-tray` and the speech MCP server `riggy-mcp`:
+### 1. Install the flake
 
-| Package | Cargo features | Lip-sync modes | License of the binary |
-|---|---|---|---|
-| `nix run .` | `rhubarb`, `espeak` | sound, rhubarb, text | GPL-3.0-or-later |
-| `nix run .#riggy-mit` | `rhubarb` | sound, rhubarb | MIT |
-| `nix run .#riggy-minimal` | none | sound | MIT |
-
-riggy's source is MIT-licensed. The `espeak` feature links libespeak-ng, which is GPL-3.0-or-later, so a binary built with it is GPL-3.0-or-later as a whole. `src/lipsync/rhubarb_animation/` is a port of Rhubarb Lip Sync's animation rules under their MIT license (`LICENSE` in that folder).
-
-## Files
-
-riggy keeps its files where Linux programs usually do:
-
-| Path | What |
-|---|---|
-| `~/.config/riggy/riggy.toml` | your settings: only what differs from the defaults in `riggy.toml` of this repository |
-| `~/.config/riggy/settings.toml` | the choices made in the tray menu |
-| `~/.config/riggy/speech-off` | exists while speech is switched off |
-| `~/.local/share/riggy/models/NAME.glb` | the models, which are not part of riggy |
-| `~/.local/share/riggy/avatars/NAME.toml` | the mapping file of model `NAME`, copied from `assets/avatars/` the first time the model is used |
-
-`[avatar] name` picks the model (default `cyborg_girl`); `path` and `mapping` name other files instead. riggy creates its settings and the mapping file at its first start. The tray's "Reset to defaults" puts them back, keeping the replaced ones as `*.old`. `RIGGY_CONFIG` names another settings file.
-
-## Model
-
-Models are not part of the repository. The default expects `~/.local/share/riggy/models/cyborg_girl.glb`. The Fab download of this model stores its skeleton only in the skins' inverse bind matrices, so its bone nodes need a rest pose before they can be animated:
-
-```bash
-mkdir -p ~/.local/share/riggy/models
-python3 tools/fix_bind_pose.py ~/Downloads/cyborg_girl/cyborg_girl.glb ~/.local/share/riggy/models/cyborg_girl.glb
-```
-
-`python3` with NumPy is part of the Nix shell.
-
-## Speech
-
-riggy listens on the Unix socket `$XDG_RUNTIME_DIR/riggy.sock`, plays what it receives on the default sound output and moves the mouth with it. One connection carries one utterance:
-
-1. one line of JSON: `{"text": "Hello", "language": "English", "rate": 24000}` (`rate` in Hz; all fields optional),
-2. raw PCM, signed 16-bit little-endian mono, until the sender closes the connection.
-
-Later connections wait until the earlier ones have been read. To try it with the local Qwen3-TTS server (`TTS_URL`, default `http://127.0.0.1:8902`):
-
-```bash
-nix develop -c cargo run --example say -- --language English "Hello, I am riggy."
-```
-
-Three lip-sync modes, chosen with `[lipsync] mode` in the settings, in the tray menu, or cycled with F3 while running:
-
-- `sound` (default): the mouth follows the sound itself. Loudness sets how far it opens, and the balance of low and high frequencies chooses between the five mouth shapes. Speech starts at once. `[mouth]` sets the loudness range, the smoothing and an extra delay of the mouth behind the sound.
-- `rhubarb`: [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync) recognises the sounds and returns mouth shapes with timings, including closed lips for m, b and p. riggy cuts the arriving speech at pauses and analyses each piece (about 1 s per piece), so speech starts about 2 s later. The Nix shell provides `rhubarb`; the flake packages its Linux release.
-- `text`: the mouth shapes come from the text in the socket header. [eSpeak NG](https://github.com/espeak-ng/espeak-ng) speaks the text itself, which gives its phonemes in any of its languages, including the German umlauts. riggy matches that synthetic speech to the real one while it arrives (dynamic time warping of MFCCs, as the forced aligner [aeneas](https://github.com/readbeyond/aeneas) does), which times each phoneme, and turns the timed phonemes into mouth shapes with Rhubarb's animation rules. Speech starts about 0.3 s later.
-
-## Speech for AI agents
-
-`riggy-mcp` is a stdio MCP server with one tool, `speak(text, language)`, that reads a short text aloud and returns at once. It fetches the speech from the Qwen3-TTS server (`TTS_URL`), changes its tempo with ffmpeg and sends it to riggy's socket, so the agent's replies come out of riggy's mouth; while riggy is closed, `pw-play` plays it. Texts are queued, each plays to its end, and at least 3 s of silence separate them. Register it, for example, with
-
-```bash
-claude mcp add --scope user tts riggy-mcp
-```
-
-`RIGGY_SOCKET` points it at another speech socket.
-
-## Tray icon
-
-`riggy-tray` puts an icon in the system tray (StatusNotifierItem, as on KDE Plasma) that controls speech and the avatar:
-
-- **Speech**: on or off. Off stops the speech server's systemd user unit `qwentts`, which frees its GPU memory, and makes `speak` play nothing.
-- **Voice** and **Tempo**: apply from the next spoken text on.
-- **Show riggy**: starts or closes the avatar on the desktop (a left click on the icon does the same). The tray starts it with `RIGGY_DESKTOP=1`: transparent and above the other windows, whatever the settings say.
-- **Click-through**: off lets riggy be dragged with the left mouse button; on lets clicks go to the windows underneath.
-- **Lip sync**: the mode from the next utterance on.
-
-- **Reset to defaults**: see [Files](#files).
-
-The choices are kept in `~/.config/riggy/settings.toml`; while speech is off, the file `~/.config/riggy/speech-off` exists, which the `qwentts` unit checks, so speech stays off across logins. The tray reaches the avatar through the control socket `$XDG_RUNTIME_DIR/riggy-control.sock`, one JSON command per line: `{"click_through":true}`, `{"lipsync":"text"}`, `"quit"`.
-
-## NixOS
-
-The flake's NixOS module installs riggy, starts `riggy-tray` with the graphical session and runs the speech server from [qwentts-nix](https://github.com/Santuzius/qwentts-nix) on port 8902:
+On NixOS, add Riggy to your system flake. This also runs the speech server:
 
 ```nix
 # flake inputs
@@ -100,34 +36,114 @@ riggy.url = "github:Santuzius/riggy";
 # configuration
 imports = [ inputs.riggy.nixosModules.default ];
 services.riggy.enable = true;
-services.qwentts.device = "Vulkan0";   # hardware settings of the speech server stay with the machine
 ```
 
-The speech server's models are downloaded once as qwentts-nix describes.
+Then rebuild your system, e.g. with `sudo nixos-rebuild switch`.
 
-## On the desktop
+On other distributions, `nix profile add github:Santuzius/riggy` installs Riggy; the speech server is then started by hand as [qwentts-nix](https://github.com/Santuzius/qwentts-nix) describes, on port 8902.
 
-Without the tray, these settings in `~/.config/riggy/riggy.toml` make riggy stand on the desktop as a figure without a window around it:
+### 2. Install models
 
-```toml
-[window]
-transparent = true      # no border, see-through background
-always_on_top = true    # X11 only; on Wayland the KWin script below does it
-click_through = true    # clicks go to the windows underneath
-```
+Models are not part of the repository.
 
-F2 switches click-through on and off while riggy has the keyboard focus. While click-through is off, dragging with the left mouse button moves the figure.
+#### TTS
 
-On KDE Plasma the KWin script in `kwin/riggy/` (the package installs it to `share/kwin/scripts/riggy`) places riggy on the top edge of the bottom panel at its right end, keeps it above other windows and out of the taskbar, the pager and Alt+Tab, and shows it on all virtual desktops. Without the package, install it from the checkout; either way, enable it once:
+The default TTS model is [Serveurperso/Qwen3-TTS-GGUF from the Hugging Face](https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF).
+
+<details><summary>Its license note</summary>
+[Serveurperso/Qwen3-TTS-GGUF](https://huggingface.co/Serveurperso/Qwen3-TTS-GGUF), licensed under Apache-2.0.
+</details>
+
+Download `qwen-talker-0.6b-customvoice-Q8_0.gguf` and `qwen-tokenizer-12hz-Q8_0.gguf`. Then install them using:
 
 ```bash
-kpackagetool6 --type KWin/Script --install kwin/riggy      # --upgrade after changes
-kwriteconfig6 --file kwinrc --group Plugins --key riggyEnabled true
-qdbus org.kde.KWin /KWin reconfigure
+riggy install ~/Downloads/qwen-talker-0.6b-customvoice-Q8_0.gguf ~/Downloads/qwen-tokenizer-12hz-Q8_0.gguf
 ```
 
-The script matches the window by its Wayland app ID (X11 class) `riggy`.
+#### Avatars
 
-## Development
+The default avatar is [3dchmoshnik's "Cyborg girl" from the Fab](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54).
 
-[doc/development.md](doc/development.md) covers live reloading, debug keys, node dumps, screenshots and lip-sync tuning.
+<details><summary>Its license note</summary>
+["Cyborg girl" by 3dchmoshnik](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54), licensed under CC BY 4.0.
+</details>
+
+Download it in the GLB format and then install using:
+
+```bash
+riggy install ~/Downloads/cyborg_girl/cyborg_girl.glb
+```
+
+Other avatars in GLB format are installed the same way and appear in the tray menu under their file name. Each needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
+
+### 3. Start
+
+Start Riggy using the entry from your start menu. From then on it starts at login by itself.
+
+### Done! 🎉
+
+#### Try it out 👀
+
+```bash
+riggy say "Hello, my name is Riggy"
+```
+
+`--language German` (or `auto`) speaks other languages.
+
+#### Integrate as MCP 🤖
+
+E.g. for Claude Code:
+
+```bash
+claude mcp add --scope user riggy-mcp riggy-mcp
+```
+
+The agent gets the tool `speak(text, language)`, and its replies come out of Riggy's mouth.
+
+#### Customize 🎛️
+
+All you need is reachable through the tray:
+
+- Switch TTS or Avatar on/off
+- Select avatar
+- Select TTS voice or tempo
+- Select lip sync method
+- Desktop: enable dragging/click-through, size, view (whole figure to face) and turn
+- Enable autostart at login or when an AI agent starts `riggy-mcp`
+- Open files for advanced configuration in your default editor
+
+[doc/usage.md](doc/usage.md) explains each entry, the lip sync methods and the settings files.
+
+## Development 🛠️
+
+```bash
+nix develop        # or `direnv allow` once
+cargo run          # the avatar in a normal window, with the defaults from the checkout
+cargo test
+```
+
+The Rust toolchain comes from rustup (`rust-toolchain.toml`); the Nix shell adds Bevy's native libraries and the tools of the lip sync methods. The package holds three programs: the avatar `riggy`, the tray icon `riggy-tray` and the MCP server `riggy-mcp`.
+
+- [doc/development.md](doc/development.md): live reloading, debug keys, screenshots and lip sync tuning
+- [doc/interfaces.md](doc/interfaces.md): the speech and control sockets and the MCP server
+- [doc/avatars.md](doc/avatars.md): mapping files for new avatars
+
+## Tips 💡
+
+- The speech server takes a few seconds to load its model after login; the tray's tooltip says "Speech starting…" until then.
+- Switching speech off in the tray frees the GPU memory of the speech server.
+- With click-through off, drag Riggy with the left mouse button and zoom with the mouse wheel.
+
+## License 📄
+
+Riggy's source is MIT-licensed. The default package links eSpeak NG (GPL-3.0-or-later) for the lip sync method "From the text", so that build is GPL-3.0-or-later as a whole:
+
+| Package | Lip sync methods | License of the build |
+|---|---|---|
+| `github:Santuzius/riggy` | sound, Rhubarb, text | GPL-3.0-or-later |
+| `github:Santuzius/riggy#riggy-mit` | sound, Rhubarb | MIT |
+| `github:Santuzius/riggy#riggy-minimal` | sound | MIT |
+
+`src/lipsync/rhubarb_animation/` is a port of [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync)'s animation rules under their MIT license (`LICENSE` in that folder). Models are not part of Riggy and keep their own licenses.
+
+Built with [Bevy](https://bevy.org), [Rhubarb Lip Sync](https://github.com/DanielSWolf/rhubarb-lip-sync), [eSpeak NG](https://github.com/espeak-ng/espeak-ng) and [qwentts.cpp](https://github.com/ServeurpersoCom/qwentts.cpp).

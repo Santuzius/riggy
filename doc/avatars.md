@@ -1,0 +1,30 @@
+# Avatars
+
+An avatar is a rigged 3D model in GLB format plus a mapping file that tells Riggy which bones to move and how its mouth shapes look.
+
+## Installing
+
+```bash
+riggy install ~/Downloads/robot.glb
+```
+
+copies the model to `~/.local/share/riggy/models/robot.glb`; the tray then lists it under "Avatar" as "robot". Some converted models (e.g. Fab's GLB conversions) keep their skeleton only in the skins' inverse bind matrices, while their bone nodes carry no transform; `riggy install` rebuilds the rest pose of such bones, so they can move.
+
+## Mapping file
+
+Riggy reads `~/.local/share/riggy/avatars/NAME.toml` for the model `NAME`. For the default avatar it copies its own mapping from `assets/avatars/` the first time; a new avatar needs one written by hand, with [assets/avatars/cyborg_girl.toml](../assets/avatars/cyborg_girl.toml) as the example. The tray opens the current avatar's mapping file under "Advanced settings".
+
+Positions and directions are in avatar space: +Y up, +Z the way the figure faces, +X its left.
+
+| Key | What |
+|---|---|
+| `scale` | factor from model units to metres (0.001 for a model in millimetres) |
+| `[humanoid]` | VRM humanoid bone name (`hips`, `head`, `jaw`, `leftUpperArm`, …) → node name in the model |
+| `[expressions.NAME]` | node name → `{ rotate = [x, y, z], translate = [x, y, z] }`, the bone change at full weight; `rotate` is an axis-angle vector in degrees, `translate` an offset in model units |
+| `[rest]` | bone changes applied permanently, e.g. lips that do not quite close |
+| `[[props]]` | simple shapes on a bone (`shape = "sphere"` or `"cube"`, `center`, `size`, `color`, `unlit`), e.g. a mouth interior or teeth the model lacks |
+| `[parts]` | free part name → node name, for non-humanoid avatars |
+
+Expressions Riggy drives: `blink`, `blinkLeft`, `blinkRight`, the mouth shapes `aa`, `ih`, `ou`, `ee`, `oh`, and `cheeks` (raised with `ee` and `ih`).
+
+Node names match exactly, or after dropping the `_<digits>` suffix Sketchfab exports append. `RIGGY_DUMP_NODES=1 riggy` prints the model's node tree with joint positions, which helps to pick the bones. Changes to `[rest]`, `[expressions.*]` and `[[props]]` apply while Riggy runs, so mouth shapes can be tuned in the editor while the window shows the result; see [development.md](development.md) for the debug keys.

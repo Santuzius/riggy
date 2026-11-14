@@ -41,13 +41,14 @@ So poses, mouth shapes and props can be tuned in the editor while the window sho
 nix develop -c cargo build --bins                  # riggy, riggy-tray, riggy-mcp in target/debug
 nix develop -c target/debug/riggy-tray             # starts target/debug/riggy itself
 tools/tray_menu.sh                                 # prints the tray menu with its entry ids
-tools/tray_menu.sh "Click-through"                 # clicks an entry, as the panel would
+tools/tray_menu.sh "Show Riggy"                    # clicks an entry, as the panel would
 ```
 
 - The tray's log is riggy's log too, since it starts the avatar as its child; `command: …` lines show what arrived on the control socket.
-- `riggy-mcp` can be tried without an MCP client by piping JSON-RPC lines into it, with ffmpeg on `PATH`:
+- A second tray only prints that one runs; quit the installed tray first, or give the test one its own `XDG_CONFIG_HOME` and `XDG_RUNTIME_DIR`.
+- `riggy-mcp` can be tried without an MCP client by piping JSON-RPC lines into it (the dev shell has ffmpeg):
   ```bash
-  (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"speak","arguments":{"text":"Hello.","language":"English"}}}'; sleep 8) | nix shell nixpkgs#ffmpeg -c target/debug/riggy-mcp
+  (printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"speak","arguments":{"text":"Hello.","language":"English"}}}'; sleep 8) | nix develop -c target/debug/riggy-mcp
   ```
   The `sleep` keeps the pipe open: `riggy-mcp` stops playing when its input ends.
 
@@ -76,7 +77,7 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 
 ## Speech and lip sync
 
-- `examples/say.rs` sends speech to the socket: a text through Qwen3-TTS, or with `--file` a raw PCM file (24 kHz s16le mono, the server's `pcm` format). `RIGGY_SOCKET` sets the socket.
+- `riggy say TEXT` speaks a text as `riggy-mcp` does. `examples/say.rs` sends speech to the socket directly: a text through Qwen3-TTS, or with `--file` a raw PCM file (24 kHz s16le mono, the server's `pcm` format). `RIGGY_SOCKET` sets the socket.
 - A PCM file for repeatable tests: `curl -s -X POST http://127.0.0.1:8902/v1/audio/speech -H 'Content-Type: application/json' -d '{"voice":"serena","input":"See. Me. Tea.","language":"English","response_format":"pcm","seed":2}' -o temp/ee.pcm`
 - `examples/lipsync.rs` runs the lip-sync analysis on PCM files without playing them. Per file it prints the median measures of the voiced windows and the share of each mouth shape; `--frames` prints every 10 ms window. The thresholds in `src/lipsync/sound.rs` come from such runs over one test word list per vowel.
 - `[mouth]` tunes the motion live: `time_constant` and `release_time` set how fast the mouth opens and closes, `shape_time` how fast it changes from one shape to another (quiet syllables change it less), `cheek_time` how slowly the cheeks follow the spread shapes, `pause_opening` and `pause_hold` how far it stays open in short pauses between words and for how long.
@@ -94,7 +95,7 @@ Point `[speech] socket` in `temp/my.toml` at the same test socket so a running r
 
 ## Model preparation
 
-- `tools/fix_bind_pose.py IN.glb OUT.glb` gives the Fab cyborg girl's bone nodes a rest pose (see the README).
+- `riggy install IN.glb` gives the bone nodes of a model like the Fab cyborg girl a rest pose (`src/install/rest_pose.rs`); [avatars.md](avatars.md) describes the mapping file.
 - Models stay in `~/.local/share/riggy/models/`, outside the repository; their licences do not allow redistribution.
 
 ## Mapping file features for models with gaps
