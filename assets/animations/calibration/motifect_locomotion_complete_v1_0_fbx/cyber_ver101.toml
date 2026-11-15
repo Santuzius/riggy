@@ -39,5 +39,25 @@ x = 0.7
 y = -0.62
 z = 0.11
 
+[actor.posture.leftShoulder]
+x = 0.67
+y = -0.54
+z = 0.08
+
+[actor.posture.rightShoulder]
+x = 1.15
+y = -0.49
+z = 0.54
+
+[actor.posture.leftUpperArm]
+x = 0.91
+y = -0.64
+z = -0.39
+
+[actor.posture.rightUpperArm]
+x = 0.67
+y = 0.59
+z = 0.2
+
 [avatar]
 arm_hang = 12.0

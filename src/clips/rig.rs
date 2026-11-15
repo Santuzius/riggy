@@ -1,10 +1,10 @@
-//! A VRM 1.0 model's node tree in its rest pose, without Bevy: for checking off-screen where a clip puts the avatar's bones (stick figures, regression tests).
+//! A VRM 1.0 or mapped GLB model's node tree in its rest pose, without Bevy: for checking off-screen where a clip puts the avatar's bones (stick figures, regression tests).
 
 use std::collections::HashMap;
 
 use bevy::math::{Affine3A, Quat, Vec3};
 
-use crate::model_edit::gltf::{Glb, floats, parents};
+use crate::model_edit::gltf::{Glb, local_matrix, parents};
 
 /// A node's local transform.
 #[derive(Debug, Clone, Copy)]
@@ -34,19 +34,54 @@ impl Rig {
     pub fn from_vrm(bytes: &[u8]) -> Result<Self, String> {
         let glb = Glb::parse(bytes)?;
         let nodes = glb.gltf["nodes"].as_array().ok_or("a model without nodes")?;
+        let mut rig = Self::from_nodes(nodes, &glb.gltf);
+        let bones = glb.gltf["extensions"]["VRMC_vrm"]["humanoid"]["humanBones"].as_object().ok_or("not a VRM 1.0 model")?;
+        rig.humanoid = bones.iter().filter_map(|(name, b)| Some((name.clone(), b["node"].as_u64()? as usize))).collect();
+        Ok(rig)
+    }
+
+    /// The rig of the GLB file `bytes` with riggy's mapping file: `humanoid` (VRM bone name → node name), `scale` (model units to metres) and `rest` (node name → turn in avatar space as axis times degrees, the mapping's `[rest]` corrections).
+    pub fn from_glb(bytes: &[u8], humanoid: &HashMap<String, String>, scale: f32, rest: &HashMap<String, Vec3>) -> Result<Self, String> {
+        let glb = Glb::parse(bytes)?;
+        let nodes = glb.gltf["nodes"].as_array().ok_or("a model without nodes")?;
+        let mut names: HashMap<&str, usize> = HashMap::new();
+        for (i, n) in nodes.iter().enumerate() {
+            let Some(name) = n["name"].as_str() else { continue };
+            names.insert(name, i);
+            names.entry(base_name(name)).or_insert(i);
+        }
+        let mut rig = Self::from_nodes(nodes, &glb.gltf);
+        rig.humanoid = humanoid.iter().filter_map(|(bone, node)| Some((bone.clone(), *names.get(node.as_str())?))).collect();
+        for i in 0..rig.locals.len() {
+            if rig.parents[i].is_none() {
+                rig.locals[i].translation *= scale;
+                rig.locals[i].scale *= scale;
+            }
+        }
+        // Each correction turns its node about its pivot in avatar space, on top of the rest pose, as riggy does on load.
+        for (node, turn) in rest {
+            let Some(&i) = names.get(node.as_str()) else { continue };
+            if turn.length() < 1e-6 {
+                continue;
+            }
+            let parent = rig.parent_world(i).to_scale_rotation_translation().1;
+            let q = Quat::from_axis_angle(turn.normalize(), turn.length().to_radians());
+            rig.locals[i].rotation = parent.inverse() * q * parent * rig.locals[i].rotation;
+        }
+        Ok(rig)
+    }
+
+    fn from_nodes(nodes: &[serde_json::Value], gltf: &serde_json::Value) -> Self {
         let locals = nodes
             .iter()
-            .map(|n| Local {
-                translation: floats::<3>(&n["translation"]).map_or(Vec3::ZERO, |v| Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32)),
-                rotation: floats::<4>(&n["rotation"]).map_or(Quat::IDENTITY, |q| Quat::from_xyzw(q[0] as f32, q[1] as f32, q[2] as f32, q[3] as f32)),
-                scale: floats::<3>(&n["scale"]).map_or(Vec3::ONE, |v| Vec3::new(v[0] as f32, v[1] as f32, v[2] as f32)),
+            .map(|n| {
+                let (scale, rotation, translation) = local_matrix(n).as_mat4().to_scale_rotation_translation();
+                Local { translation, rotation, scale }
             })
             .collect::<Vec<_>>();
-        let map = parents(&glb.gltf);
+        let map = parents(gltf);
         let parents = (0..locals.len()).map(|i| map.get(&i).copied()).collect();
-        let bones = glb.gltf["extensions"]["VRMC_vrm"]["humanoid"]["humanBones"].as_object().ok_or("not a VRM 1.0 model")?;
-        let humanoid = bones.iter().filter_map(|(name, b)| Some((name.clone(), b["node"].as_u64()? as usize))).collect();
-        Ok(Self { locals, parents, humanoid })
+        Self { locals, parents, humanoid: HashMap::new() }
     }
 
     /// Every node's world transform with the local rotations `rotations` in place of the rest ones.
@@ -71,5 +106,13 @@ impl Rig {
     /// The world transform of node `i`'s parent in the rest pose.
     pub fn parent_world(&self, i: usize) -> Affine3A {
         self.parents[i].map_or(Affine3A::IDENTITY, |p| self.worlds(&HashMap::new())[p])
+    }
+}
+
+/// Drops the `_<digits>` suffix Sketchfab appends to node names.
+pub fn base_name(name: &str) -> &str {
+    match name.rsplit_once('_') {
+        Some((base, digits)) if !base.is_empty() && !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) => base,
+        _ => name,
     }
 }

@@ -117,8 +117,8 @@ fn chain_child(bone: B) -> Option<B> {
     }
 }
 
-/// The trunk, from the hips up: it keeps the avatar's own posture where the pack names a neutral clip.
-pub const TRUNK: [B; 6] = [B::Hips, B::Spine, B::Chest, B::UpperChest, B::Neck, B::Head];
+/// The trunk from the hips up and the shoulders: they keep the avatar's own posture where the pack names a neutral clip.
+pub const POSTURE: [B; 8] = [B::Hips, B::Spine, B::Chest, B::UpperChest, B::Neck, B::Head, B::LeftShoulder, B::RightShoulder];
 
 /// Two bones beside each other that span a bone's width across its axis: the hips' and the legs' between the thighs, the hands' and the arms' and fingers' across the knuckles, the head's between the eyes. Aligning the width too turns each bone about its own axis as the clip's, so a palm faces where the clip's faces.
 fn width(bone: B) -> Option<(B, B)> {
@@ -181,16 +181,31 @@ pub fn retarget(clip: &Clip, calibration: Option<&Calibration>, h: &Humanoid, in
         let bone = bones[&b];
         bone.rotations[f] * bone.rest_rotation.inverse() * align[&b].inverse()
     };
+    // Arm roll: aligned to the avatar's rest pose, the actor's upper arm in the neutral clip, G_N = N·C⁻¹, may be rolled about its own axis against how riggy's idle hangs the avatar's arm, I_N: the shortest turn from the arm's rest direction a to G_N·a (the shoulders then face elsewhere). The avatar's upper arm turns by G(t)·G_N⁻¹·I_N, which points it where G(t) does and is I_N in the neutral clip.
+    let unroll: HashMap<B, Quat> = [(B::LeftUpperArm, B::LeftLowerArm), (B::RightUpperArm, B::RightLowerArm)]
+        .into_iter()
+        .filter(|&(u, _)| shared(u))
+        .filter_map(|(u, l)| {
+            let n = calibration?.actor.posture.get(u.as_str())?.quat();
+            let a = (h.position(l)? - h.position(u)?).normalize_or_zero();
+            let g = n * align[&u].inverse();
+            Some((u, g.inverse() * Quat::from_rotation_arc(a, (g * a).normalize_or_zero())))
+        })
+        .collect();
+    let own_turn = |b: B, f: usize| match unroll.get(&b) {
+        Some(&u) => (own_turn(b, f) * u).normalize(),
+        None => own_turn(b, f),
+    };
 
-    // Posture: the trunk (hips to head) keeps the avatar's own posture and moves only as far as the actor leaves theirs. Q(t) = M_parent(t)⁻¹·M(t) is how the clip turns a trunk bone against its parent; N = N_parent⁻¹·N_bone, from the calibration's mean turns in the neutral clip, is the actor's natural posture. The avatar's bone turns against its parent by E(t) = Q(t)·N⁻¹, which is no turn in the actor's natural posture. Limbs, hanging from the trunk, still point where the clip's point.
-    let trunk_parent = |b: B| nearest(parent(b), parent).filter(|p| TRUNK.contains(p));
+    // Posture: the trunk (hips to head) and the shoulders keep the avatar's own posture and moves only as far as the actor leaves theirs. Q(t) = M_parent(t)⁻¹·M(t) is how the clip turns such a bone against its parent; N = N_parent⁻¹·N_bone, from the calibration's mean turns in the neutral clip, is the actor's natural posture. The avatar's bone turns against its parent by E(t) = Q(t)·N⁻¹, which is no turn in the actor's natural posture. Limbs, hanging from the trunk, still point where the clip's point.
+    let trunk_parent = |b: B| nearest(parent(b), parent).filter(|p| POSTURE.contains(p));
     let m = |b: B, f: usize| bones[&b].rotations[f] * bones[&b].rest_rotation.inverse();
     let relative = |b: B, f: usize| match trunk_parent(b) {
         Some(p) => m(p, f).inverse() * m(b, f),
         None => m(b, f),
     };
     let natural = |b: B| calibration?.actor.posture.get(b.as_str()).map(|t| t.quat());
-    let trunk_posture: HashMap<B, Quat> = TRUNK
+    let trunk_posture: HashMap<B, Quat> = POSTURE
         .iter()
         .copied()
         .filter(|&b| shared(b))
@@ -202,7 +217,7 @@ pub fn retarget(clip: &Clip, calibration: Option<&Calibration>, h: &Humanoid, in
     let trunk_turns: Vec<HashMap<B, Quat>> = (0..clip.frames)
         .map(|f| {
             let mut d: HashMap<B, Quat> = HashMap::new();
-            for &b in TRUNK.iter().filter(|b| trunk_posture.contains_key(b)) {
+            for &b in POSTURE.iter().filter(|b| trunk_posture.contains_key(b)) {
                 let e = relative(b, f) * trunk_posture[&b].inverse();
                 let above = trunk_parent(b).and_then(|p| d.get(&p).copied()).unwrap_or(Quat::IDENTITY);
                 d.insert(b, (above * e).normalize());

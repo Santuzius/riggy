@@ -64,7 +64,7 @@ Riggy brings mapping files for the GLB avatars below; a VRM avatar needs none. D
 
 |Avatar|Author|Screenshot|Features|Source|Install command|License|
 |---|---|---|---|---|---|---|
-|Cyborg girl (default)|[3dchmoshnik](https://www.fab.com/sellers/3dchmoshnik/about)|<img src="doc/images/Screenshot_20261114_203121.png" alt="Cyborg girl by 3dchmoshnik" width="250">|Humanoid, animated idle, walking and speaking|[link](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54)|`riggy install ./cyborg_girl.glb`|[CC BY 4.0](https://creativecommons.org/licenses/#licenses-40)|
+|Cyborg girl|[3dchmoshnik](https://www.fab.com/sellers/3dchmoshnik/about)|<img src="doc/images/Screenshot_20261114_203121.png" alt="Cyborg girl by 3dchmoshnik" width="250">|Humanoid, animated idle, walking and speaking|[link](https://www.fab.com/listings/78cf53b9-75d0-4731-b59b-5bb4ededde54)|`riggy install ./cyborg_girl.glb`|[CC BY 4.0](https://creativecommons.org/licenses/#licenses-40)|
 |Ballytic-813c|[Lio-3DW](https://www.fab.com/sellers/Lio-3DW/about)|<img src="doc/images/Screenshot_20261114_203211.png" alt="Ballytic-813c by Lio-3DW" width="250">|Non-humanoid, animated idle and speaking|[link](https://www.fab.com/listings/6ab2b5b2-393c-43fa-be61-f18d7753e31e)|`riggy install ./ModelFormats/Ballytic813c_Reforged_ByLio3DW.glb ./Textures/CleanTextures/1K_Textures/{"ColorMap[1K].jpg","ORM_Map[1K].png","NormalMap_GL[1K].png"} "./Textures/EmissionMap[1K].png"`|[Fab Standard License](https://www.fab.com/eula)|
 |Cyber-style girl|[IBUKI-PLANET](https://ibukiplanet.booth.pm/)|<img src="doc/images/Screenshot_20261114_cyber.png" alt="Cyber-style girl by IBUKI-PLANET" width="250">|Humanoid (VRM), animated idle, walking and speaking|[link](https://ibukiplanet.booth.pm/items/4224646)|[convert it to VRM 1.0](doc/avatars.md#vrm-avatars), then `riggy install ./cyber_ver101.vrm`|[IBUKI-PLANET's terms of use](https://ibukiplanet.booth.pm/items/4224646) (non-commercial, no redistribution)|
 
@@ -76,7 +76,7 @@ Without any animation packs installed you just get default not diversified idle 
 
 |Pack|Author|Approved for|Clips|Source|Install command|License|
 |---|---|---|---|---|---|---|
-|Locomotion|[Motifect](https://www.fab.com/sellers/Motifect/about)|Cyber-style girl (1/45)|45: walking, running, turning, jumping, crouching, climbing|[link](https://www.fab.com/listings/021d0450-017e-4262-8769-03953338dacc)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
+|Locomotion|[Motifect](https://www.fab.com/sellers/Motifect/about)|Cyborg girl (3/45), Cyber-style girl (1/45), |45: walking, running, turning, jumping, crouching, climbing|[link](https://www.fab.com/listings/021d0450-017e-4262-8769-03953338dacc)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 |Emotes & Social|[Motifect](https://www.fab.com/sellers/Motifect/about)|None|30: gestures, dances, greetings, emotions|[link](https://www.fab.com/listings/9b07a055-d31d-41fc-96f6-c86f4aed7ae2)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 |Realistic Acting|[Mocap.in](https://www.fab.com/sellers/Mocap.in/about)|None|9: listening, sit idle, talking, talking angry|[link](https://www.fab.com/listings/b07dd992-3ef4-45d0-a6b8-47cddbaed25b)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 

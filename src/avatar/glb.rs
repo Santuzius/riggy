@@ -207,13 +207,6 @@ fn spawn_avatar(mut commands: Commands, config: Res<Config>, asset_server: Res<A
         .observe(resolve_avatar);
 }
 
-/// Drops the `_<digits>` suffix Sketchfab appends to node names.
-fn base_name(name: &str) -> &str {
-    match name.rsplit_once('_') {
-        Some((base, digits)) if !base.is_empty() && !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) => base,
-        _ => name,
-    }
-}
 
 fn resolve_avatar(
     ready: On<WorldInstanceReady>,
@@ -233,7 +226,7 @@ fn resolve_avatar(
     for entity in children.iter_descendants(root) {
         if let Ok(name) = names.get(entity) {
             nodes.insert(name.as_str().to_owned(), entity);
-            nodes.entry(base_name(name.as_str()).to_owned()).or_insert(entity);
+            nodes.entry(riggy::clips::rig::base_name(name.as_str()).to_owned()).or_insert(entity);
         }
     }
     info!("avatar loaded: {} nodes", nodes.len());

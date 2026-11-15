@@ -12,7 +12,7 @@ use riggy::clips::rig::Rig;
 
 use riggy::clips::calibration::Calibration;
 
-use super::retarget::{Retargeted, TRUNK, arm_of, parent, retarget};
+use super::retarget::{Retargeted, POSTURE, arm_of, parent, retarget};
 use super::{is_face, is_leg};
 use crate::avatar::{Humanoid, HumanoidBone as B, PoseBone};
 
@@ -82,8 +82,8 @@ pub fn direction_errors(clip: &Clip, rig: &Rig) -> HashMap<B, f32> {
         for (&b, &pos) in &a {
             let Some(p) = parent(b) else { continue };
             let (Some(&ap), Some(&cb), Some(&cp)) = (a.get(&p), c.get(&b), c.get(&p)) else { continue };
-            // Legs are the stance's; a calibrated trunk keeps the avatar's posture (see `posture_errors`).
-            if is_leg(b) || (r.calibrated && TRUNK.contains(&b)) {
+            // Legs are the stance's; a calibrated trunk and shoulders keep the avatar's posture (see `posture_errors`), so where the upper arm starts follows the avatar's shoulder.
+            if is_leg(b) || (r.calibrated && (POSTURE.contains(&b) || matches!(p, B::LeftShoulder | B::RightShoulder))) {
                 continue;
             }
             // An arm is swung about the shoulder to the avatar's hang; a segment below the shoulder points where the clip's points after that swing.
@@ -112,7 +112,7 @@ pub fn twist_errors(clip: &Clip, rig: &Rig) -> HashMap<B, f32> {
     for f in 0..clip.frames {
         let a = avatar_pose(rig, &h, &nodes, &r, f);
         let c = clip_pose(clip, f);
-        for (bone, tip, one, other) in WIDTHS.into_iter().filter(|w| !(r.calibrated && TRUNK.contains(&w.0))) {
+        for (bone, tip, one, other) in WIDTHS.into_iter().filter(|w| !(r.calibrated && POSTURE.contains(&w.0))) {
             let ([Some(ab), Some(at), Some(a1), Some(a2)], [Some(cb), Some(ct), Some(c1), Some(c2)]) = ([bone, tip, one, other].map(|x| a.get(&x).copied()), [bone, tip, one, other].map(|x| c.get(&x).copied())) else { continue };
             let swing = arm_of(bone).map_or(Quat::IDENTITY, |side| r.arm_swings[f][side]);
             let (ct, c1, c2) = (cb + swing * (ct - cb), cb + swing * (c1 - cb), cb + swing * (c2 - cb));
@@ -148,7 +148,36 @@ pub fn load_clip(name: &str) -> Clip {
 
 pub fn load_rig(path: &str) -> Rig {
     let path = path.replacen('~', &std::env::var("HOME").unwrap(), 1);
-    Rig::from_vrm(&std::fs::read(path).unwrap()).unwrap()
+    let bytes = std::fs::read(&path).unwrap();
+    if !path.ends_with(".glb") {
+        return Rig::from_vrm(&bytes).unwrap();
+    }
+    // A GLB avatar reads its bones, scale and rest corrections from riggy's mapping file of the same name.
+    let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
+    let text = std::fs::read_to_string(riggy::files::data_dir().join("avatars").join(format!("{name}.toml"))).unwrap();
+    let mapping: crate::avatar::glb::Mapping = toml::from_str(&text).unwrap();
+    let rest = mapping.rest.iter().map(|(n, d)| (n.clone(), Vec3::from(d.rotate))).collect();
+    Rig::from_glb(&bytes, &mapping.humanoid, mapping.scale, &rest).unwrap()
+}
+
+/// How far each shoulder line (shoulder to upper arm) is raised on the avatar in the clip `neutral` against its rest pose, in degrees, mean over the frames: left, right.
+pub fn shoulder_lifts(neutral: &Clip, rig: &Rig) -> [f32; 2] {
+    let (h, nodes, r) = retargeted(neutral, rig);
+    let worlds = rig.worlds(&HashMap::new());
+    let rest: HashMap<B, Vec3> = nodes.iter().map(|(&b, &n)| (b, worlds[n].translation.into())).collect();
+    let lift = |pose: &HashMap<B, Vec3>, s: B, u: B| {
+        let d = pose[&u] - pose[&s];
+        d.y.atan2(Vec2::new(d.x, d.z).length()).to_degrees()
+    };
+    let sides = [(B::LeftShoulder, B::LeftUpperArm), (B::RightShoulder, B::RightUpperArm)];
+    let mut sums = [0.0; 2];
+    for f in 0..neutral.frames {
+        let a = avatar_pose(rig, &h, &nodes, &r, f);
+        for (i, &(s, u)) in sides.iter().enumerate() {
+            sums[i] += lift(&a, s, u) - lift(&rest, s, u);
+        }
+    }
+    sums.map(|x| x / neutral.frames.max(1) as f32)
 }
 
 /// See the module documentation.
@@ -171,6 +200,8 @@ fn write_sticks() {
     if let Some(neutral) = &clip.neutral {
         println!("trunk posture in {neutral} against the avatar's rest (degrees): {:?}", posture_errors(&load_clip(neutral), &rig));
         println!("arm hang in {neutral} against the avatar's (degrees, left and right): {:?}", hang_errors(&load_clip(neutral), &rig));
+        println!("calibration measured on {neutral}:\n{}", toml::to_string_pretty(&Calibration::measure(&load_clip(neutral), neutral, ARM_ANGLE)).unwrap());
+        println!("shoulders in {neutral}, raised against the avatar's rest (degrees, left and right): {:?}", shoulder_lifts(&load_clip(neutral), &rig));
     }
 }
 
@@ -180,7 +211,7 @@ pub fn posture_errors(neutral: &Clip, rig: &Rig) -> HashMap<B, f32> {
     let r = retarget(neutral, Some(&Calibration::measure(neutral, "neutral", ARM_ANGLE)), &h, |b| !is_leg(b) && !is_face(b));
     r.bones
         .iter()
-        .filter(|(b, _)| TRUNK.contains(b))
+        .filter(|(b, _)| POSTURE.contains(b))
         .map(|(b, q)| {
             let first = Vec4::from(q[0]);
             let sum = q.iter().fold(Vec4::ZERO, |s, x| s + Vec4::from(*x) * Vec4::from(*x).dot(first).signum());
@@ -225,7 +256,7 @@ fn check(clip: &str, vrm: &str) {
     assert!(bad.is_empty(), "bones turned about their axes against the clip (degrees): {bad:?}");
     let neutral = clip.neutral.as_deref().expect("the clip's bone map names no neutral clip");
     let posture = posture_errors(&load_clip(neutral), &rig);
-    assert!(posture.len() == TRUNK.len() && posture.values().all(|e| *e < 0.5), "trunk bones off the avatar's posture in {neutral} (degrees): {posture:?}");
+    assert!(posture.len() == POSTURE.len() && posture.values().all(|e| *e < 0.5), "trunk bones off the avatar's posture in {neutral} (degrees): {posture:?}");
     let hang = hang_errors(&load_clip(neutral), &rig);
     assert!(hang.iter().all(|e| e.abs() < 1.0), "upper arms off the avatar's hang in {neutral} (degrees, left and right): {hang:?}");
 }
@@ -234,4 +265,10 @@ fn check(clip: &str, vrm: &str) {
 #[ignore = "reads the user's installed clips and avatar"]
 fn idle_neutral_on_cyber_ver101() {
     check("idle_neutral", "~/.local/share/riggy/models/cyber_ver101.vrm");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn idle_neutral_on_cyborg_girl() {
+    check("idle_neutral", "~/.local/share/riggy/models/cyborg_girl.glb");
 }

@@ -12,10 +12,10 @@ How a clip from an animation pack is made to fit an avatar, one clip at a time, 
 
 1. Pick the simplest clip not yet checked, one with a complete skeleton so stick figures can be drawn.
 2. Check that the installed clip itself is sound: its stick figure (`write_sticks`, grey in `tools/clip_sticks.py`) stands upright on the floor, faces +Z and moves as the clip's name says. A broken clip points at `riggy install`.
-3. Off-screen comparison (`RIGGY_CLIP=… nix develop -c cargo test --bin riggy -- --ignored write_sticks --nocapture`):
+3. Off-screen comparison (`RIGGY_CLIP=… RIGGY_VRM=<model .vrm or .glb> nix develop -c cargo test --bin riggy -- --ignored write_sticks --nocapture`; a GLB avatar reads its mapping file):
    - limb bones point where the clip's do (direction errors below 1°, except bones placed beside their parent, whose offsets follow the proportions),
    - hands turn about their axes as the clip's (twist below 1°),
-   - in the neutral clip the trunk keeps the avatar's posture (below 0.5°) and the arms hang as the avatar's (below 1°),
+   - in the neutral clip the trunk and shoulders keep the avatar's posture (below 0.5°; the shoulder lines are also printed as degrees raised against the rest pose) and the arms hang as the avatar's (below 1°),
    - stick figures from the front, the side and above (`tools/clip_sticks.py`).
 4. In the app (`tools/clip_shots.sh`, with `TURN=90` and `TURN=-90` for the sides), compared with the same shots without a clip (`no_such_clip`):
    - posture: trunk upright as without a clip, not leaning back onto the heels or slouching,
@@ -24,6 +24,6 @@ How a clip from an animation pack is made to fit an avatar, one clip at a time, 
    - eyes looking ahead (clips leave the eye bones to riggy),
    - the logged pose (`RIGGY_POSE_LOG`, written by the script) through `tools/clip_balance.py`: body centre over the feet and trunk lean close to the shots without a clip.
 5. Find the cause of any difference before fixing it: the clip, the retargeting, the calibration, or riggy's own motion on top (idle, stance). Earlier fixes are checked too.
-6. Add the pair's regression test (`check(clip, vrm)` in `src/animation/clips/sticks.rs`) and its row in animation-checks.md.
+6. Add the pair's regression test (`check(clip, model)` in `src/animation/clips/sticks.rs`) and its row in animation-checks.md.
 7. Add the clip to `approved` in the default calibration `assets/animations/calibration/<pack>/<avatar>.toml` and the user's copy, so the tray lists it.
 8. The user looks at it in `riggy-tray`; commit once they confirm.
