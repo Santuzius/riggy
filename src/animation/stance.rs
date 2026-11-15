@@ -53,6 +53,8 @@ pub struct Stance {
     /// Seconds since the body last turned.
     resting: f32,
     height: f32,
+    /// Whether a clip turns the body and steps (a turn clip on an avatar whose legs the clips pose): the stance then waits, and takes the clip's turn over at its end ([`Stance::turn_by`]).
+    pub held: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -85,6 +87,7 @@ impl Stance {
             feet: [Foot { place: Vec3::ZERO, heading: turn, step: None }; 2],
             resting: 0.0,
             height: h.height,
+            held: false,
         };
         for i in 0..2 {
             stance.feet[i].place = stance.home(i, turn);
@@ -125,8 +128,34 @@ impl Stance {
         self.feet.iter().enumerate().find_map(|(i, f)| f.step.map(|s| (i, (PI * s.progress).sin())))
     }
 
+    /// Turns body and feet by `radians` at once, about the pivot: a clip's turn taken over.
+    pub fn turn_by(&mut self, radians: f32) {
+        let rotation = Quat::from_rotation_y(radians);
+        self.turn += radians;
+        for foot in &mut self.feet {
+            foot.heading += radians;
+            foot.place = self.pivot + rotation * (foot.place - self.pivot);
+            foot.step = None;
+        }
+    }
+
+    /// Makes the body's present turn the one asked for, so the stance does not turn on towards an older wish.
+    pub fn stay(&mut self) {
+        self.wanted = self.turn;
+    }
+
+    /// Turns the avatar root `transform` about the pivot as the body is turned.
+    pub fn place(&self, transform: &mut Transform) {
+        let rotation = Quat::from_rotation_y(self.turn);
+        transform.rotation = rotation;
+        transform.translation = transform.scale * (self.pivot - rotation * self.pivot);
+    }
+
     /// Turns the body towards the turn asked for and moves the feet on by `dt` seconds.
     fn advance(&mut self, dt: f32) {
+        if self.held {
+            return;
+        }
         let feet_heading = self.feet[0].heading + wrapped(self.feet[1].heading - self.feet[0].heading) / 2.0;
         let wanted = self.turn + wrapped(self.wanted - self.turn);
         let lead = TURN_LEAD.to_radians();
@@ -188,9 +217,7 @@ fn stand_up(mut commands: Commands, config: Res<Config>, avatars: Query<(Entity,
 fn step(time: Res<Time>, mut avatars: Query<(&mut Stance, &mut Transform), With<AvatarRoot>>) {
     for (mut stance, mut transform) in &mut avatars {
         stance.advance(time.delta_secs());
-        let rotation = Quat::from_rotation_y(stance.turn);
-        transform.rotation = rotation;
-        transform.translation = transform.scale * (stance.pivot - rotation * stance.pivot);
+        stance.place(&mut transform);
     }
 }
 

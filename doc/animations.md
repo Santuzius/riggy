@@ -19,6 +19,22 @@ Each FBX file becomes one clip, a GLB of the skeleton and its motion. A file who
 
 The tray menu opens this folder under Advanced settings → Animations folder.
 
+### Unity packages
+
+```sh
+riggy install ./animation_pack_basic_motions.unitypackage
+```
+
+A `.unitypackage` is installed whole, as one pack named after the file; Unity is not needed. Each humanoid clip in it (`.anim`) becomes one clip, named after its file in lower case (`Turn Left.anim` → `turn_left`).
+
+A Unity humanoid clip stores muscle values, not bone rotations: how far each joint bends between its limits. Unity turns them into rotations through the Avatar it computes when it imports a character, and that Avatar is not part of the package. Riggy plays the clips on its own Unity rig instead, a T-pose skeleton built by Unity with Unity's default limits, using the same formulas as Unity (see `src/install/unity/humanoid/README.md`). Checked against Unity playing the Basic Motions pack on its own demo character:
+
+- arms, legs and fingers point within 1–3° of Unity's;
+- the thumbs within 10–16°, the shoulders within 11–12°, the trunk within 7° and the head within 18°, because the two skeletons are built differently;
+- clips Unity plays mirrored (such as Turn Right made from Turn Left) are mirrored the same way.
+
+The install adds riggy's bone map for that rig, `unity_humanoid.toml`, which names `idle` as the neutral clip.
+
 ## Bone maps
 
 A clip's skeleton has its own node names. A bone map in the pack's `skeletons/` folder says which node is which humanoid bone, using the VRM 1.0 bone names:
@@ -33,7 +49,7 @@ leftUpperLeg = "LeftUpLeg"
 leftLowerLeg = "LeftLeg"
 ```
 
-Riggy reads a clip through the first map in the folder whose nodes all exist in the clip. When installing, it adds its own map for the skeletons it knows (Motifect, and Mixamo-style names). For any other skeleton the install prints a hint, and a map written by hand into `skeletons/` takes effect at once. Bones a map leaves out stay still.
+Riggy reads a clip through the first map in the folder whose nodes all exist in the clip. When installing, it adds its own map for the skeletons it knows (Motifect, Mixamo-style names, and riggy's Unity rig). For any other skeleton the install prints a hint, and a map written by hand into `skeletons/` takes effect at once. Bones a map leaves out stay still.
 
 Clip and avatar may rest in different poses (an A-pose clip on a T-pose avatar): riggy aligns each clip bone's rest direction with the avatar bone's, and its turn about that direction by a width across it (between the thighs, the shoulders or the knuckles), so every bone points where the clip's bone points and a palm faces where the clip's faces.
 
@@ -48,7 +64,7 @@ riggy then calibrates every clip of that skeleton on it, for each avatar:
 - **Trunk** (hips to head) and **shoulders**: the avatar keeps its own posture and moves only as far as the actor leaves theirs, so a bow or a slump still shows in full.
 - **Upper arms** roll about their own axes as the avatar's do at ease in the neutral clip, so shoulder pads and caps face where they face without a clip.
 - **Arms**: the line from shoulder to wrist hangs out from vertical as riggy's idle holds the arms (`[idle] arm_angle`) where the actor's hangs as in the neutral clip; each arm swings out about the shoulder by the difference, fully while it hangs down and not at all once raised to horizontal, so the hands stay clear of wide hips or a coat.
-- **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand. The calibration also holds the actor's natural leg turns, so clips that move the legs can keep the avatar's own stance (straight legs, the feet flat or on their toes as the avatar is built).
+- **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand. The calibration also holds the actor's natural leg turns, so clips that move the legs can keep the avatar's own stance (straight legs, the feet flat or on their toes as the avatar is built). With Advanced settings → "Animations move the legs" the clips move the legs instead, and riggy's stance (weight shift, feet kept on the floor, stepping after a turn) stays out.
 
 riggy keeps these values in one file per pack and avatar, `<pack>/calibration/<avatar>.toml`:
 

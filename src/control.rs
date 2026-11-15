@@ -1,6 +1,6 @@
 //! The avatar's sockets: speech comes in on one, commands from the tray on the other.
 //!
-//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}`, `{"clips":false}`, `{"unapproved":true}`, `{"play":"pack/clip"}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
+//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}`, `{"clips":false}`, `{"unapproved":true}`, `{"clip_legs":true}`, `{"play":"pack/clip"}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
 
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
@@ -50,6 +50,8 @@ pub enum Command {
     Clips(bool),
     /// Whether the behaviour also plays clips not approved on the avatar.
     Unapproved(bool),
+    /// Whether clips move the legs instead of riggy's stance.
+    ClipLegs(bool),
     /// Plays an installed clip once, by `pack/clip`, whether clips are on or not.
     Play(String),
     /// Close the avatar.

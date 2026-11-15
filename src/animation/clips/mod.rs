@@ -107,12 +107,14 @@ struct Requests {
     clips_on: bool,
     /// Whether the behaviour also plays clips not approved on the avatar.
     unapproved: bool,
+    /// Whether clips move the legs instead of riggy's stance.
+    legs: bool,
     play: Vec<String>,
 }
 
 impl Default for Requests {
     fn default() -> Self {
-        Self { clips_on: true, unapproved: false, play: Vec::new() }
+        Self { clips_on: true, unapproved: false, legs: false, play: Vec::new() }
     }
 }
 
@@ -121,6 +123,7 @@ fn listen(mut received: MessageReader<Received>, mut requests: ResMut<Requests>)
         match command {
             Command::Clips(on) => requests.clips_on = *on,
             Command::Unapproved(on) => requests.unapproved = *on,
+            Command::ClipLegs(on) => requests.legs = *on,
             Command::Play(name) => requests.play.push(name.clone()),
             _ => {}
         }
@@ -196,6 +199,8 @@ struct Layer {
     on: bool,
     intensity: f32,
     fade: f32,
+    /// A turn clip's turn of the hips about the vertical (radians) handed to the stance when it began to fade out, and the clip's amount then.
+    taken: Option<(f32, f32)>,
 }
 
 /// How strongly the clips pose each part of an avatar now, from 0 to 1, on the avatar root: riggy's procedural idle motion of that part gives way by as much, so it does not add to the clip's. The stance, which keeps the feet on the floor, stays.
@@ -209,6 +214,8 @@ pub struct ClipCover {
     pub arms: f32,
     /// The clips' turn of the hips (avatar space), from which the stance bends the legs to the feet.
     pub hips: Quat,
+    /// Whether the clips move the legs, so riggy's stance stays out.
+    pub legs: bool,
 }
 
 /// What an avatar plays, on the avatar root.
@@ -222,6 +229,8 @@ struct Player {
     base: Option<Base>,
     /// Whether the behaviour may start clips not approved on the avatar.
     unapproved: bool,
+    /// Whether the clips are built with their legs.
+    legs: bool,
     /// Seconds until the next idle clip.
     idle_wait: Option<f32>,
     last: Option<String>,
@@ -237,7 +246,7 @@ impl Player {
                 match Clip::load(&file.path, &file.skeletons_dir()) {
                     Ok(clip) => {
                         let calibration = calibration(library, file, &clip);
-                        Some(Arc::new(retarget(&clip, calibration.as_ref(), h, |b| bones.includes(b) && !is_leg(b) && !is_face(b))))
+                        Some(Arc::new(retarget(&clip, calibration.as_ref(), h, |b| bones.includes(b) && (self.legs || !is_leg(b)) && !is_face(b))))
                     }
                     Err(err) => {
                         eprintln!("riggy: animation {}: {err}", file.key());
@@ -264,7 +273,7 @@ impl Player {
             layer.on = false;
             layer.fade = layer.fade.min(fade);
         }
-        self.layers.push(Layer { kind, clip, time, weight: 0.0, on: true, intensity: playing.intensity.clamp(0.0, 1.0), fade });
+        self.layers.push(Layer { kind, clip, time, weight: 0.0, on: true, intensity: playing.intensity.clamp(0.0, 1.0), fade, taken: None });
         self.last = Some(name);
         true
     }
@@ -287,7 +296,7 @@ fn play(
     library: Res<Library>,
     mut requests: ResMut<Requests>,
     voice: Res<Voice>,
-    mut avatars: Query<(Entity, &Humanoid, Option<&Stance>, Option<&mut Player>, Option<&mut ClipCover>)>,
+    mut avatars: Query<(Entity, &Humanoid, Option<&mut Stance>, Option<&mut Player>, Option<&mut ClipCover>)>,
     mut transforms: Query<&mut Transform>,
 ) {
     let dt = time.delta_secs();
@@ -301,13 +310,13 @@ fn play(
         return;
     }
     let asked = std::mem::take(&mut requests.play);
-    for (entity, h, stance, player, cover) in &mut avatars {
+    for (entity, h, mut stance, player, cover) in &mut avatars {
         let (Some(mut player), Some(mut cover)) = (player, cover) else {
             commands.entity(entity).insert((Player::default(), ClipCover::default()));
             continue;
         };
-        if player.generation != library.generation {
-            *player = Player { generation: library.generation, ..Default::default() };
+        if player.generation != library.generation || player.legs != requests.legs {
+            *player = Player { generation: library.generation, legs: requests.legs, ..Default::default() };
         }
         for name in &asked {
             if !player.start(&library, Kind::Asked, std::slice::from_ref(name), &ASKED, h, false) {
@@ -320,13 +329,13 @@ fn play(
         let asked_playing = player.current().is_some_and(|l| l.kind == Kind::Asked);
         if !asked_playing {
             if b.enabled && requests.clips_on {
-                choose(&mut player, &library, h, stance, voice.speaking, dt);
+                choose(&mut player, &library, h, stance.as_deref(), voice.speaking, dt);
             } else {
                 player.layers.iter_mut().for_each(|l| l.on = false);
             }
         }
 
-        *cover = ClipCover::default();
+        *cover = ClipCover { legs: requests.legs, ..Default::default() };
         // The layers' rotations of each bone, combined, on top of the base clip.
         let mut pose: HashMap<B, Quat> = HashMap::new();
         let base_wanted = b.enabled && requests.clips_on && !asked_playing;
@@ -341,10 +350,28 @@ fn play(
                 pose.insert(bone, Quat::IDENTITY.slerp(rotation, amount));
             }
         }
+        let legs_mode = player.legs;
         for layer in &mut player.layers {
             layer.time += dt;
             if layer.time >= layer.clip.duration() - layer.fade {
                 layer.on = false;
+            }
+            // A stepping turn hands its turn of the hips to the stance as it begins to fade out, so the avatar stays turned; the turn asked for becomes where the clip turned it, so no turn back follows.
+            if legs_mode && layer.kind == Kind::Turn && !layer.on && layer.taken.is_none() {
+                let a0 = (smooth(layer.weight) * layer.intensity).max(1e-3);
+                let hips = layer.clip.sample(layer.time).find(|(b, _)| *b == B::Hips).map(|(_, q)| Quat::IDENTITY.slerp(q, a0));
+                let yaw = hips.map_or(0.0, |q| {
+                    let f = q * Vec3::Z;
+                    f.x.atan2(f.z)
+                });
+                layer.taken = Some((yaw, a0));
+                if let Some(stance) = stance.as_deref_mut() {
+                    stance.turn_by(yaw);
+                    stance.stay();
+                    if let Ok(mut t) = transforms.get_mut(entity) {
+                        stance.place(&mut t);
+                    }
+                }
             }
             let step = dt / layer.fade;
             layer.weight = if layer.on { (layer.weight + step).min(1.0) } else { (layer.weight - step).max(0.0) };
@@ -354,9 +381,17 @@ fn play(
             cover.head = (cover.head + covers(&[B::Neck, B::Head])).min(1.0);
             cover.arms = (cover.arms + covers(&[B::LeftUpperArm, B::RightUpperArm, B::LeftLowerArm, B::RightLowerArm])).min(1.0);
             for (bone, rotation) in layer.clip.sample(layer.time) {
+                let turned = match layer.taken {
+                    Some((yaw, a0)) if bone == B::Hips => Quat::IDENTITY.slerp(Quat::from_rotation_y(-yaw) * Quat::IDENTITY.slerp(rotation, a0), (amount / a0).min(1.0)),
+                    _ => Quat::IDENTITY.slerp(rotation, amount),
+                };
                 let q = pose.entry(bone).or_default();
-                *q = Quat::IDENTITY.slerp(rotation, amount) * *q;
+                *q = turned * *q;
             }
+        }
+        // With the clips moving the legs, the body turns only through turn clips: the stance waits for one, and takes its turn over at its end.
+        if let Some(stance) = stance.as_deref_mut() {
+            stance.held = legs_mode;
         }
         cover.hips = pose.get(&B::Hips).copied().unwrap_or_default();
         for (bone, rotation) in pose {
@@ -435,7 +470,9 @@ fn choose(player: &mut Player, library: &Library, h: &Humanoid, stance: Option<&
         } else {
             &b.turn.right
         };
-        if player.start(library, Kind::Turn, names, &b.turn.playing, h, false) {
+        // Where the clips move the legs, a turn clip steps and turns the whole body.
+        let playing = if player.legs { Playing { bones: Bones::All, intensity: 1.0, ..b.turn.playing.clone() } } else { b.turn.playing.clone() };
+        if player.start(library, Kind::Turn, names, &playing, h, false) {
             return;
         }
     }

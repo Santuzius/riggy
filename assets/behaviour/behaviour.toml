@@ -29,8 +29,8 @@ pause = [10.0, 30.0]
 
 # When the avatar turns: the clip for the direction, while the feet step after the body.
 [turn]
-left = ["turn_left_90"]
-right = ["turn_right_90"]
+left = ["turn_left"]
+right = ["turn_right"]
 around = ["turn_180"]
 intensity = 0.8
 fade = 0.3

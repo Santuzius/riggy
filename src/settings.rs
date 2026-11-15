@@ -40,6 +40,9 @@ pub struct Settings {
     pub unapproved_in_behaviour: bool,
     /// Whether the tray's Play animation menu also lists clips not approved on the avatar.
     pub unapproved_in_list: bool,
+    /// Whether clips move the legs, instead of riggy's stance keeping the feet on the floor (weight shift, stepping after a turn).
+    #[serde(default)]
+    pub clip_legs: bool,
 }
 
 impl Default for Settings {
@@ -60,6 +63,7 @@ impl Default for Settings {
             clips: true,
             unapproved_in_behaviour: false,
             unapproved_in_list: false,
+            clip_legs: false,
         }
     }
 }

@@ -137,6 +137,10 @@ impl RiggyTray {
                     let on = !tray.settings.unapproved_in_list;
                     tray.choose(|s| s.unapproved_in_list = on);
                 }),
+                checkmark("Animations move the legs", self.settings.clip_legs, |tray| {
+                    let on = !tray.settings.clip_legs;
+                    tray.choose_and_send(|s| s.clip_legs = on, |s| AvatarCommand::ClipLegs(s.clip_legs));
+                }),
                 MenuItem::Separator,
                 action("Settings file", "document-edit", |_| open(&files::user_config())),
                 action("Avatar's mapping file", "document-edit", |tray| open(&files::mapping(&tray.model()))),

@@ -71,7 +71,7 @@ fn obey(mut commands: MessageReader<Received>, mut cursors: Query<&mut CursorOpt
             Command::Quit => {
                 exit.write(AppExit::Success);
             }
-            Command::Lipsync(_) | Command::Zoom(_) | Command::Turn(_) | Command::Clips(_) | Command::Unapproved(_) | Command::Play(_) => {}
+            Command::Lipsync(_) | Command::Zoom(_) | Command::Turn(_) | Command::Clips(_) | Command::Unapproved(_) | Command::ClipLegs(_) | Command::Play(_) => {}
         }
     }
 }

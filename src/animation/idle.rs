@@ -69,11 +69,13 @@ fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness:
         h.rotate(B::Neck, lift.inverse(), &mut transforms);
 
         // Weight shift: the pelvis moves sideways and its loaded side rises; the legs bend so the feet stay put, the spine so the head stays upright.
-        let sway = live * drift(t, c.sway_rate, 0.0) * torso;
+        // With the clips moving the legs, the hips stay where the clips put them.
+        let sway = if cover.legs { 0.0 } else { live * drift(t, c.sway_rate, 0.0) * torso };
         let shift = Vec3::X * c.sway_shift * h.height * sway;
         let roll = rad(c.sway_angle) * sway;
-        match stance {
+        match stance.filter(|_| !cover.legs) {
             Some(stance) => stance::stand(h, stance, shift, Quat::from_rotation_z(roll), cover.hips, &mut transforms),
+            None if cover.legs => {}
             None => {
                 h.translate(B::Hips, shift, &mut transforms);
                 h.rotate(B::Hips, Quat::from_rotation_z(roll), &mut transforms);
