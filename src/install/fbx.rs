@@ -21,6 +21,14 @@ struct Track {
     poses: Vec<Pose>,
 }
 
+impl Track {
+    /// Whether any sample leaves the first one.
+    fn moves(&self) -> bool {
+        let Some(first) = self.poses.first() else { return false };
+        self.poses.iter().any(|p| p.rotation.dot(first.rotation).abs() < 1.0 - STILL || p.translation.distance(first.translation) > STILL || p.scale.distance(first.scale) > STILL)
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Pose {
     translation: DVec3,
@@ -67,6 +75,9 @@ pub fn animation_glb(bytes: &[u8], name: &str) -> Result<Vec<u8>, String> {
             poses: times.iter().map(|t| ufbx::evaluate_transform(&stack.anim, node, stack.time_begin + t).into()).collect(),
         })
         .collect();
+    if !tracks.iter().any(Track::moves) {
+        return Err("its animation does not move; it may be a character model rather than a clip".into());
+    }
     Ok(glb(&tracks, &times, name).to_bytes())
 }
 
