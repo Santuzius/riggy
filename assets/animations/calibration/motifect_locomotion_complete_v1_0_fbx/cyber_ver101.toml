@@ -59,5 +59,45 @@ x = 0.67
 y = 0.59
 z = 0.2
 
+[actor.posture.leftUpperLeg]
+x = -0.25
+y = -0.17
+z = -0.07
+
+[actor.posture.leftLowerLeg]
+x = 0.21
+y = -0.19
+z = -0.11
+
+[actor.posture.leftFoot]
+x = -0.0
+y = 0.1
+z = 0.03
+
+[actor.posture.leftToes]
+x = 0.16
+y = 0.09
+z = 0.01
+
+[actor.posture.rightUpperLeg]
+x = -0.54
+y = -0.11
+z = -0.09
+
+[actor.posture.rightLowerLeg]
+x = 0.16
+y = -0.19
+z = -0.04
+
+[actor.posture.rightFoot]
+x = 0.01
+y = -0.05
+z = 0.16
+
+[actor.posture.rightToes]
+x = 0.11
+y = -0.01
+z = 0.16
+
 [avatar]
 arm_hang = 12.0

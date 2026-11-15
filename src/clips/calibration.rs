@@ -2,7 +2,7 @@
 //!
 //! The actor of a pack stands in their own natural posture (in the neutral clip its bone map names), which an avatar should not copy: riggy keeps the avatar's posture and plays only how far a clip moves away from the actor's. The file holds what that takes:
 //!
-//! - `actor.posture`: each trunk, shoulder and upper arm bone's mean turn in the neutral clip against the clip's rest pose, in avatar space (degrees about X, Y and Z, applied Y, X, Z);
+//! - `actor.posture`: each trunk, shoulder, upper arm and leg bone's mean turn in the neutral clip against the clip's rest pose, in avatar space (degrees about X, Y and Z, applied Y, X, Z);
 //! - `actor.arm_hang`: degrees the line from the actor's shoulder to wrist hangs out from vertical there, seen from the front, left and right;
 //! - `approved`: the pack's clips checked on this avatar; riggy lists only these in the tray and plays only these from the behaviour;
 //! - `avatar.arm_hang`: degrees the avatar's arms hang out at ease (riggy's `[idle] arm_angle`).
@@ -17,8 +17,25 @@ use serde::{Deserialize, Serialize};
 
 use super::{Clip, ClipBone};
 
-/// The bones that keep the avatar's own posture: the trunk from the hips up and the shoulders, as humanoid bone names (VRM 1.0).
-pub const POSTURE: [&str; 8] = ["hips", "spine", "chest", "upperChest", "neck", "head", "leftShoulder", "rightShoulder"];
+/// The bones that keep the avatar's own posture: the trunk from the hips up, the shoulders and the legs, as humanoid bone names (VRM 1.0).
+pub const POSTURE: [&str; 16] = [
+    "hips",
+    "spine",
+    "chest",
+    "upperChest",
+    "neck",
+    "head",
+    "leftShoulder",
+    "rightShoulder",
+    "leftUpperLeg",
+    "leftLowerLeg",
+    "leftFoot",
+    "leftToes",
+    "rightUpperLeg",
+    "rightLowerLeg",
+    "rightFoot",
+    "rightToes",
+];
 
 /// The upper arms, whose mean turn in the neutral clip sets how far they roll about their own axes (see `retarget`).
 pub const UPPER_ARMS: [&str; 2] = ["leftUpperArm", "rightUpperArm"];

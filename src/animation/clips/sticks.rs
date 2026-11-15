@@ -205,10 +205,10 @@ fn write_sticks() {
     }
 }
 
-/// For each trunk bone, the angle, in degrees, of its mean turn against its parent while `neutral` plays: 0 where the avatar keeps its own posture in the actor's natural one.
+/// For each trunk, shoulder and leg bone, the angle, in degrees, of its mean turn against its parent while `neutral` plays: 0 where the avatar keeps its own posture in the actor's natural one.
 pub fn posture_errors(neutral: &Clip, rig: &Rig) -> HashMap<B, f32> {
     let (h, _) = humanoid(rig);
-    let r = retarget(neutral, Some(&Calibration::measure(neutral, "neutral", ARM_ANGLE)), &h, |b| !is_leg(b) && !is_face(b));
+    let r = retarget(neutral, Some(&Calibration::measure(neutral, "neutral", ARM_ANGLE)), &h, |b| !is_face(b));
     r.bones
         .iter()
         .filter(|(b, _)| POSTURE.contains(b))
@@ -256,7 +256,7 @@ fn check(clip: &str, vrm: &str) {
     assert!(bad.is_empty(), "bones turned about their axes against the clip (degrees): {bad:?}");
     let neutral = clip.neutral.as_deref().expect("the clip's bone map names no neutral clip");
     let posture = posture_errors(&load_clip(neutral), &rig);
-    assert!(posture.len() == POSTURE.len() && posture.values().all(|e| *e < 0.5), "trunk bones off the avatar's posture in {neutral} (degrees): {posture:?}");
+    assert!(posture.len() == POSTURE.len() && posture.values().all(|e| *e < 0.5), "trunk, shoulder or leg bones off the avatar's posture in {neutral} (degrees): {posture:?}");
     let hang = hang_errors(&load_clip(neutral), &rig);
     assert!(hang.iter().all(|e| e.abs() < 1.0), "upper arms off the avatar's hang in {neutral} (degrees, left and right): {hang:?}");
 }

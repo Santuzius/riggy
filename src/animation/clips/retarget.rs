@@ -117,8 +117,25 @@ fn chain_child(bone: B) -> Option<B> {
     }
 }
 
-/// The trunk from the hips up and the shoulders: they keep the avatar's own posture where the pack names a neutral clip.
-pub const POSTURE: [B; 8] = [B::Hips, B::Spine, B::Chest, B::UpperChest, B::Neck, B::Head, B::LeftShoulder, B::RightShoulder];
+/// The trunk from the hips up, the shoulders and the legs: they keep the avatar's own posture where the pack names a neutral clip, so the legs stand as the avatar's do (straight, the feet flat or on their toes as it is built).
+pub const POSTURE: [B; 16] = [
+    B::Hips,
+    B::Spine,
+    B::Chest,
+    B::UpperChest,
+    B::Neck,
+    B::Head,
+    B::LeftShoulder,
+    B::RightShoulder,
+    B::LeftUpperLeg,
+    B::LeftLowerLeg,
+    B::LeftFoot,
+    B::LeftToes,
+    B::RightUpperLeg,
+    B::RightLowerLeg,
+    B::RightFoot,
+    B::RightToes,
+];
 
 /// Two bones beside each other that span a bone's width across its axis: the hips' and the legs' between the thighs, the hands' and the arms' and fingers' across the knuckles, the head's between the eyes. Aligning the width too turns each bone about its own axis as the clip's, so a palm faces where the clip's faces.
 fn width(bone: B) -> Option<(B, B)> {

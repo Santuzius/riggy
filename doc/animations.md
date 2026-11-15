@@ -48,7 +48,7 @@ riggy then calibrates every clip of that skeleton on it, for each avatar:
 - **Trunk** (hips to head) and **shoulders**: the avatar keeps its own posture and moves only as far as the actor leaves theirs, so a bow or a slump still shows in full.
 - **Upper arms** roll about their own axes as the avatar's do at ease in the neutral clip, so shoulder pads and caps face where they face without a clip.
 - **Arms**: the line from shoulder to wrist hangs out from vertical as riggy's idle holds the arms (`[idle] arm_angle`) where the actor's hangs as in the neutral clip; each arm swings out about the shoulder by the difference, fully while it hangs down and not at all once raised to horizontal, so the hands stay clear of wide hips or a coat.
-- **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand.
+- **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand. The calibration also holds the actor's natural leg turns, so clips that move the legs can keep the avatar's own stance (straight legs, the feet flat or on their toes as the avatar is built).
 
 riggy keeps these values in one file per pack and avatar, `<pack>/calibration/<avatar>.toml`:
 
@@ -59,7 +59,7 @@ approved = ["idle_neutral"]  # clips checked on this avatar: listed in the tray,
 [actor]
 arm_hang = [4.71, 4.52]      # degrees the actor's shoulder-to-wrist lines hang out, left and right
 
-[actor.posture.chest]        # the actor's natural turn of each trunk, shoulder and upper arm bone against the clip's rest pose,
+[actor.posture.chest]        # the actor's natural turn of each trunk, shoulder, upper arm and leg bone against the clip's rest pose,
 x = 0.31                     # degrees about X (positive leans forward), Y (turns left) and Z
 y = -0.63
 z = 0.03
