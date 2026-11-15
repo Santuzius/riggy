@@ -5,10 +5,12 @@
 //! - `*.glb` without a skeleton right after an avatar: clothing of that avatar, into its own folder (mapping file: `[[clothing]]`).
 //! - `*.vrm`: a VRM 1.0 avatar, into `~/.local/share/riggy/models/`; a VRM 0.x file is refused with a hint to convert it.
 //! - `*.fbx`: an animation clip, converted to a GLB of its skeleton and animation (see [`fbx`]), into `~/.local/share/riggy/animations/<pack>/assets/`, named after the file, the pack after its folder; the pack's bone map goes into `skeletons/` next to it where riggy knows the skeleton.
+//! - `*.unitypackage`: a Unity animation pack; each humanoid clip in it is converted to a GLB on riggy's Unity rig (see [`unity`]), into `~/.local/share/riggy/animations/<pack>/assets/`, the pack named after the file, with riggy's bone map for that rig.
 //! - `*.png`, `*.jpg`: a texture of the avatar installed before it, into that model's own folder (`riggy::files::model_textures`), for a model whose file comes without its textures.
 
 mod fbx;
 mod rest_pose;
+mod unity;
 mod vrm;
 
 use std::path::{Path, PathBuf};
@@ -24,6 +26,8 @@ pub enum Installed {
     Texture { avatar: String, path: PathBuf },
     Clothing { avatar: String, path: PathBuf },
     Animation { pack: String, name: String, path: PathBuf, skeleton: SkeletonMap },
+    /// The clips of a `.unitypackage`, by name, and the assets in it that were not converted, each with the reason.
+    UnityPack { pack: String, dir: PathBuf, clips: Vec<String>, skipped: Vec<String>, skeleton: SkeletonMap },
 }
 
 /// Whether an installed clip's pack has a bone map that fits it.
@@ -80,13 +84,28 @@ pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
             write(&path, glb)?;
             Ok(Installed::Animation { pack, name, path, skeleton })
         }
+        Some("unitypackage") => {
+            let bytes = std::fs::read(file).map_err(|err| format!("{}: {err}", file.display()))?;
+            let stem = file.file_stem().and_then(|s| s.to_str()).ok_or("the file name is not valid UTF-8")?;
+            let pack = clips::pack_name(stem);
+            let (converted, skipped) = unity::clips(&bytes).map_err(|err| format!("{}: {err}", file.display()))?;
+            let first = converted.first().ok_or_else(|| format!("{}: no humanoid animation clips in it", file.display()))?;
+            let skeleton = skeleton_for(&pack, &first.glb)?;
+            let mut names = Vec::new();
+            for clip in converted {
+                let name = clips::pack_name(&clip.name);
+                write(&files::animation(&pack, &name), clip.glb)?;
+                names.push(name);
+            }
+            Ok(Installed::UnityPack { dir: files::animation_pack(&pack), pack, clips: names, skipped, skeleton })
+        }
         Some("png" | "jpg" | "jpeg") => {
             let avatar = avatar.ok_or_else(|| format!("{}: a texture belongs to an avatar; name the avatar's .glb before it", file.display()))?;
             let path = files::model_textures(avatar).join(file_name);
             copy(file, &path)?;
             Ok(Installed::Texture { avatar: avatar.to_owned(), path })
         }
-        _ => Err(format!("{}: riggy installs speech models (.gguf), avatars (.glb, .vrm), their textures (.png, .jpg) and animation clips (.fbx)", file.display())),
+        _ => Err(format!("{}: riggy installs speech models (.gguf), avatars (.glb, .vrm), their textures (.png, .jpg) and animation clips (.fbx, .unitypackage)", file.display())),
     }
 }
 

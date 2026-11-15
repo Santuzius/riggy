@@ -85,6 +85,15 @@ pub fn install(files: &[PathBuf]) -> ExitCode {
                     SkeletonMap::Missing(dir) => println!("  riggy does not know this skeleton; write a bone map for it into {} (see doc/animations.md)", dir.display()),
                 }
             }
+            Ok(Installed::UnityPack { pack, dir, clips, skipped, skeleton }) => {
+                println!("Installed {} animations of {pack:?} into {}: {}", clips.len(), dir.display(), clips.join(", "));
+                for asset in skipped {
+                    println!("  Skipped {asset}");
+                }
+                if let SkeletonMap::Added(path) = skeleton {
+                    println!("  Added the bone map {}", path.display());
+                }
+            }
             Err(err) => {
                 eprintln!("riggy: {err}");
                 failed = true;

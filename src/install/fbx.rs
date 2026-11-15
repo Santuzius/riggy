@@ -14,11 +14,11 @@ const DEFAULT_FPS: f64 = 30.0;
 const STILL: f64 = 1e-5;
 
 /// A node of the clip's skeleton, sampled over the clip.
-struct Track {
-    name: String,
-    parent: Option<usize>,
-    rest: Pose,
-    poses: Vec<Pose>,
+pub(super) struct Track {
+    pub(super) name: String,
+    pub(super) parent: Option<usize>,
+    pub(super) rest: Pose,
+    pub(super) poses: Vec<Pose>,
 }
 
 impl Track {
@@ -30,10 +30,10 @@ impl Track {
 }
 
 #[derive(Clone, Copy)]
-struct Pose {
-    translation: DVec3,
-    rotation: DQuat,
-    scale: DVec3,
+pub(super) struct Pose {
+    pub(super) translation: DVec3,
+    pub(super) rotation: DQuat,
+    pub(super) scale: DVec3,
 }
 
 impl From<ufbx::Transform> for Pose {
@@ -81,7 +81,7 @@ pub fn animation_glb(bytes: &[u8], name: &str) -> Result<Vec<u8>, String> {
     Ok(glb(&tracks, &times, name).to_bytes())
 }
 
-fn glb(tracks: &[Track], times: &[f64], name: &str) -> Glb {
+pub(super) fn glb(tracks: &[Track], times: &[f64], name: &str) -> Glb {
     let nodes: Vec<Value> = tracks
         .iter()
         .enumerate()

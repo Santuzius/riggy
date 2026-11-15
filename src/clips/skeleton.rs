@@ -6,7 +6,11 @@ use std::path::Path;
 use serde::Deserialize;
 
 /// The bone maps riggy brings, by file name, for the skeletons of known packs; `riggy install` copies the one that fits into a new pack.
-pub const DEFAULT_SKELETONS: [(&str, &str); 2] = [("motifect", include_str!("../../assets/animations/skeletons/motifect.toml")), ("mixamo", include_str!("../../assets/animations/skeletons/mixamo.toml"))];
+pub const DEFAULT_SKELETONS: [(&str, &str); 3] = [
+    ("motifect", include_str!("../../assets/animations/skeletons/motifect.toml")),
+    ("mixamo", include_str!("../../assets/animations/skeletons/mixamo.toml")),
+    ("unity_humanoid", include_str!("../../assets/animations/skeletons/unity_humanoid.toml")),
+];
 
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct Skeleton {
