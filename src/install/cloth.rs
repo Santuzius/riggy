@@ -1,6 +1,6 @@
 //! Cloth chains for a VRM avatar whose garment has no working spring bones: `[[cloth]]` in the avatar's mapping file, applied by `riggy install`.
 //!
-//! Each entry hangs `chains` spring chains around the humanoid bone `bone`, from the height `top` down to the garment's hem, each set just inside the garment. The garment's vertices below `top` are bound to the two nearest chains, blending into their old binding over the first segment, and capsule colliders on thighs and shins keep the chains out of the legs. bevy_vrm1 then swings them like hair. What to add depends on how a model was made, so only a model whose own mapping file has entries is changed.
+//! Each entry hangs `chains` spring chains around the humanoid bone `bone`, from the height `top` down to the garment's hem, each set just inside the garment. The garment's vertices below `top` are bound to the two nearest chains, blending into their old binding over the first segment, and colliders on thighs and shins (rows of spheres) keep the chains out of the legs. bevy_vrm1 then swings them like hair. What to add depends on how a model was made, so only a model whose own mapping file has entries is changed.
 
 use std::f64::consts::{PI, TAU};
 
@@ -31,7 +31,7 @@ pub struct ClothSpec {
     pub gravity: f64,
     /// Radius of each chain joint for collisions.
     pub hit_radius: f64,
-    /// Radii of the capsule colliders on thighs and shins; 0 adds none.
+    /// Radii of the colliders on thighs and shins; 0 adds none.
     pub legs: [f64; 2],
 }
 
@@ -86,7 +86,7 @@ fn spring_bone(gltf: &mut Value) -> &mut Value {
     extension
 }
 
-/// Adds capsules from hip to knee and knee to ankle with radii `radii` as one collider group; returns its index.
+/// Adds colliders from hip to knee and knee to ankle with radii `radii` as one collider group, each a row of spheres; returns its index.
 fn add_leg_colliders(glb: &mut Glb, radii: [f64; 2]) -> Result<Option<usize>, String> {
     if radii == [0.0; 2] {
         return Ok(None);
@@ -98,7 +98,12 @@ fn add_leg_colliders(glb: &mut Glb, radii: [f64; 2]) -> Result<Option<usize>, St
         for (i, radius) in radii.into_iter().enumerate() {
             if radius > 0.0 {
                 let tail = world_matrix(&glb.gltf, &parents, bones[i]).inverse().transform_point3(world_matrix(&glb.gltf, &parents, bones[i + 1]).w_axis.truncate());
-                colliders.push(json!({ "node": bones[i], "shape": { "capsule": { "offset": [0.0, 0.0, 0.0], "radius": radius, "tail": tail.to_array() } } }));
+                // bevy_vrm1 ignores capsule colliders, so a row of spheres a radius apart stands in for one.
+                let count = (tail.length() / radius).ceil() as usize;
+                for n in 0..=count {
+                    let offset = tail * n as f64 / count as f64;
+                    colliders.push(json!({ "node": bones[i], "shape": { "sphere": { "offset": offset.to_array(), "radius": radius } } }));
+                }
             }
         }
     }
