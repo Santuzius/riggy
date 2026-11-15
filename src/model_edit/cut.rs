@@ -1,4 +1,4 @@
-//! Parts of a model cut away by `riggy install`: `[[cut]]` in the avatar's mapping file removes the triangles of some materials whose texture coordinates lie in a rectangle, e.g. a painted lining between two layers of a coat. Only a model whose own mapping file has entries is changed.
+//! Parts of a model cut away when riggy loads it: `[[cut]]` in the avatar's mapping file removes the triangles of some materials whose texture coordinates lie in a rectangle, e.g. a painted lining between two layers of a coat. Only a model whose own mapping file has entries is changed.
 
 use serde::Deserialize;
 use serde_json::json;

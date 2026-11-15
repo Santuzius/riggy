@@ -2,9 +2,11 @@
 //!
 //! MToon shades by the direction of each directional light and ignores its strength, so a VRM avatar is lit by one key light (`view`). bevy_vrm1 draws no outline on a double-sided material (most of a VRoid model), so the outlined ones are made single-sided; the inside of a skirt then shows in the outline colour, as in VRoid Hub's viewer.
 //!
-//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; its own mapping file may set `window_height`; its `[[cloth]]` is applied by `riggy install` (`install::cloth`). Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
+//! Pose code moves the humanoid bones as on a `glb` avatar; the expression weights go to bevy_vrm1, which turns them into the model's morph targets and material changes. A VRM model needs no mapping file; its own mapping file may set `window_height`, and its `[[cut]]` and `[[cloth]]` edit the model (`riggy::model_edit`): riggy loads an edited copy from `files::edited_models_dir`, rebuilt when the mapping file changes. Spring chains measure their inertia relative to the avatar root, so turning the figure does not fling hair and cloth outward.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 use bevy::prelude::*;
 use bevy::render::render_resource::Face;
@@ -29,17 +31,84 @@ impl Plugin for VrmAvatarPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(VrmPlugin)
             .add_systems(Startup, spawn_avatar)
-            .add_systems(Update, (reset_bones.in_set(AvatarSet::Reset), apply_expressions.in_set(AvatarSet::Apply)));
+            .add_systems(Update, (reset_bones.in_set(AvatarSet::Reset), apply_expressions.in_set(AvatarSet::Apply), reload_model));
     }
+}
+
+/// The installed model, its mapping file, and the edited copy riggy loads; the copy is rebuilt when the mapping file changes.
+#[derive(Resource)]
+struct ModelWatch {
+    model: PathBuf,
+    mapping: PathBuf,
+    modified: Option<SystemTime>,
+    /// Counts the copies written; each gets its own file name, so the asset server loads it afresh.
+    generation: u32,
+    timer: Timer,
 }
 
 fn spawn_avatar(mut commands: Commands, config: Res<Config>, asset_server: Res<AssetServer>) {
     if config.avatar.kind != AvatarKind::Vrm {
         return;
     }
-    let Some(path) = model_asset_path(&config.avatar.path) else { return };
-    info!("loading {}", config.avatar.path.display());
+    let watch = ModelWatch {
+        model: config.avatar.path.clone(),
+        mapping: config.avatar.mapping.clone(),
+        modified: crate::config::modified(&config.avatar.mapping),
+        generation: 0,
+        timer: Timer::new(Duration::from_secs(1), TimerMode::Repeating),
+    };
+    spawn_model(&mut commands, &asset_server, &watch);
+    commands.insert_resource(watch);
+}
+
+/// Writes the edited copy of the model and spawns the avatar from it.
+fn spawn_model(commands: &mut Commands, asset_server: &AssetServer, watch: &ModelWatch) {
+    let Some(copy) = write_edited_model(&watch.model, &watch.mapping, watch.generation) else { return };
+    let Some(path) = model_asset_path(&copy) else { return };
+    info!("loading {}", watch.model.display());
     commands.spawn((AvatarRoot, Name::new("avatar"), Expressions::default(), VrmHandle(asset_server.load(path)))).observe(resolve_avatar);
+}
+
+/// Writes `model` with the edits of its mapping file (`riggy::model_edit`) as copy number `generation` and removes older copies; returns the copy's path. A mapping file that cannot be applied leaves the model as it is.
+fn write_edited_model(model: &Path, mapping: &Path, generation: u32) -> Option<PathBuf> {
+    let bytes = std::fs::read(model).map_err(|err| error!("{}: {err}", model.display())).ok()?;
+    let text = std::fs::read_to_string(mapping).unwrap_or_default();
+    let bytes = match riggy::model_edit::edited_vrm(&bytes, &text) {
+        Ok(edited) => edited.unwrap_or(bytes),
+        Err(err) => {
+            error!("{}: {err}; the model is loaded without its edits", mapping.display());
+            bytes
+        }
+    };
+    let dir = riggy::files::edited_models_dir();
+    let stem = model.file_stem()?.to_string_lossy().into_owned();
+    for old in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        if old.file_name().to_string_lossy().starts_with(&format!("{stem}.")) {
+            let _ = std::fs::remove_file(old.path());
+        }
+    }
+    let copy = dir.join(format!("{stem}.{generation}.vrm"));
+    std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&copy, bytes)).map_err(|err| error!("{}: {err}", copy.display())).ok()?;
+    Some(copy)
+}
+
+/// Rebuilds the edited copy and replaces the avatar when the mapping file changes.
+fn reload_model(mut commands: Commands, time: Res<Time>, asset_server: Res<AssetServer>, watch: Option<ResMut<ModelWatch>>, roots: Query<Entity, With<AvatarRoot>>) {
+    let Some(mut watch) = watch else { return };
+    if !watch.timer.tick(time.delta()).just_finished() {
+        return;
+    }
+    let modified = crate::config::modified(&watch.mapping);
+    if modified == watch.modified {
+        return;
+    }
+    watch.modified = modified;
+    watch.generation += 1;
+    info!("{} changed; reloading the avatar", watch.mapping.display());
+    for root in &roots {
+        commands.entity(root).despawn();
+    }
+    spawn_model(&mut commands, &asset_server, &watch);
 }
 
 /// Builds the [`Humanoid`] from the bones bevy_vrm1 marked, once the model is attached.

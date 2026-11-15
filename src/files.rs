@@ -27,6 +27,11 @@ fn xdg_dir(variable: &str, fallback: &str) -> PathBuf {
     std::env::var_os(variable).map(PathBuf::from).filter(|dir| dir.is_absolute()).unwrap_or_else(|| home().join(fallback))
 }
 
+/// `$XDG_CACHE_HOME/riggy/models`, by default `~/.cache/riggy/models`: VRM models with their mapping file's edits applied, rebuilt whenever riggy starts or the mapping file changes.
+pub fn edited_models_dir() -> PathBuf {
+    xdg_dir("XDG_CACHE_HOME", ".cache").join("riggy/models")
+}
+
 /// `$XDG_CONFIG_HOME/riggy`, by default `~/.config/riggy`.
 pub fn config_dir() -> PathBuf {
     xdg_dir("XDG_CONFIG_HOME", ".config").join("riggy")

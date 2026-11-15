@@ -4,6 +4,7 @@ pub mod autostart;
 pub mod control;
 pub mod files;
 pub mod install;
+pub mod model_edit;
 pub mod settings;
 pub mod speaker;
 pub mod speech_server;

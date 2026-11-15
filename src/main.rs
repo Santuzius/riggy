@@ -42,7 +42,14 @@ fn run_avatar() {
     }
 
     let mut app = App::new();
-    avatar::register_model_source(&mut app, &config.avatar.path);
+    // A VRM model is loaded from its edited copy (`avatar::vrm`).
+    let model_path = if config.avatar.kind == config::AvatarKind::Vrm {
+        let _ = std::fs::create_dir_all(riggy::files::edited_models_dir());
+        riggy::files::edited_models_dir().join("model")
+    } else {
+        config.avatar.path.clone()
+    };
+    avatar::register_model_source(&mut app, &model_path);
     app.add_plugins(DefaultPlugins.set(WindowPlugin {
         primary_window: Some(window::primary_window(&config.window)),
         primary_cursor_options: Some(window::primary_cursor_options(&config.window)),

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use bevy::math::DMat4;
 use serde_json::Value;
 
-use super::gltf::{Glb, inverse_bind_matrices, local_matrix, set_trs};
+use crate::model_edit::gltf::{Glb, inverse_bind_matrices, local_matrix, set_trs};
 
 /// A model with its rest pose rebuilt.
 pub struct RestPoseFix {

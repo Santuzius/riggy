@@ -1,4 +1,4 @@
-//! Cloth chains for a VRM avatar whose garment has no working spring bones: `[[cloth]]` in the avatar's mapping file, applied by `riggy install`.
+//! Cloth chains for a VRM avatar whose garment has no working spring bones: `[[cloth]]` in the avatar's mapping file, applied when riggy loads the model.
 //!
 //! Each entry hangs `chains` spring chains around the humanoid bone `bone`, from the height `top` down to the garment's hem, each set just inside the garment. The garment's vertices below `top` are bound to the two nearest chains, blending into their old binding over the first segment, and colliders on thighs and shins (rows of spheres) keep the chains out of the legs. bevy_vrm1 then swings them like hair. What to add depends on how a model was made, so only a model whose own mapping file has entries is changed.
 

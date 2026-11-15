@@ -1,4 +1,4 @@
-//! A GLB file's glTF JSON and binary buffer, with the node and accessor helpers the install fixes share.
+//! A GLB file's glTF JSON and binary buffer, with the node and accessor helpers the model edits and `install` share.
 
 use bevy::math::{DMat4, DQuat, DVec3};
 use serde_json::{Value, json};
@@ -8,13 +8,13 @@ const JSON_CHUNK: u32 = 0x4E4F_534A;
 const BIN_CHUNK: u32 = 0x004E_4942;
 
 /// A GLB file's two chunks: the glTF JSON and the binary buffer.
-pub(super) struct Glb {
-    pub(super) gltf: Value,
-    pub(super) binary: Vec<u8>,
+pub(crate) struct Glb {
+    pub(crate) gltf: Value,
+    pub(crate) binary: Vec<u8>,
 }
 
 impl Glb {
-    pub(super) fn parse(bytes: &[u8]) -> Result<Self, String> {
+    pub(crate) fn parse(bytes: &[u8]) -> Result<Self, String> {
         let word = |at: usize| bytes.get(at..at + 4).map(|b| u32::from_le_bytes(b.try_into().unwrap())).ok_or("the file ends early");
         if word(0)? != MAGIC {
             return Err("not a GLB file".into());
@@ -32,7 +32,7 @@ impl Glb {
         Ok(Self { gltf, binary })
     }
 
-    pub(super) fn to_bytes(&self) -> Vec<u8> {
+    pub(crate) fn to_bytes(&self) -> Vec<u8> {
         let mut text = serde_json::to_vec(&self.gltf).expect("JSON values serialise");
         text.resize(text.len().next_multiple_of(4), b' ');
         let mut binary = self.binary.clone();
@@ -53,13 +53,13 @@ impl Glb {
     }
 }
 
-pub(super) fn floats<const N: usize>(value: &Value) -> Option<[f64; N]> {
+pub(crate) fn floats<const N: usize>(value: &Value) -> Option<[f64; N]> {
     let values: Vec<f64> = value.as_array()?.iter().filter_map(Value::as_f64).collect();
     values.try_into().ok()
 }
 
 /// A node's local transform, from its `matrix` or its translation, rotation and scale.
-pub(super) fn local_matrix(node: &Value) -> DMat4 {
+pub(crate) fn local_matrix(node: &Value) -> DMat4 {
     if let Some(matrix) = floats::<16>(&node["matrix"]) {
         return DMat4::from_cols_array(&matrix);
     }
@@ -70,7 +70,7 @@ pub(super) fn local_matrix(node: &Value) -> DMat4 {
 }
 
 /// Writes `matrix` (rotation, scale and translation) into the node as translation, rotation and scale.
-pub(super) fn set_trs(node: &mut Value, matrix: DMat4) {
+pub(crate) fn set_trs(node: &mut Value, matrix: DMat4) {
     let (scale, rotation, translation) = matrix.to_scale_rotation_translation();
     let node = node.as_object_mut().expect("glTF nodes are objects");
     node.remove("matrix");
@@ -79,7 +79,7 @@ pub(super) fn set_trs(node: &mut Value, matrix: DMat4) {
     node.insert("scale".into(), json!(scale.to_array()));
 }
 
-pub(super) fn inverse_bind_matrices(gltf: &Value, binary: &[u8], skin: &Value) -> Result<Vec<DMat4>, String> {
+pub(crate) fn inverse_bind_matrices(gltf: &Value, binary: &[u8], skin: &Value) -> Result<Vec<DMat4>, String> {
     let Some(accessor) = skin["inverseBindMatrices"].as_u64().map(|a| &gltf["accessors"][a as usize]) else {
         // Without them glTF takes identity matrices.
         return Ok(vec![DMat4::IDENTITY; skin["joints"].as_array().map_or(0, Vec::len)]);
@@ -100,7 +100,7 @@ pub(super) fn inverse_bind_matrices(gltf: &Value, binary: &[u8], skin: &Value) -
 
 
 /// The elements of accessor `index` as floats, `N` components each; integer components are converted as they are, or to 0..1 when the accessor is `normalized`.
-pub(super) fn read_accessor<const N: usize>(gltf: &Value, binary: &[u8], index: usize) -> Result<Vec<[f64; N]>, String> {
+pub(crate) fn read_accessor<const N: usize>(gltf: &Value, binary: &[u8], index: usize) -> Result<Vec<[f64; N]>, String> {
     let accessor = &gltf["accessors"][index];
     if accessor.get("sparse").is_some() {
         return Err(format!("accessor {index} is sparse"));
@@ -137,7 +137,7 @@ pub(super) fn read_accessor<const N: usize>(gltf: &Value, binary: &[u8], index: 
 }
 
 /// Appends `bytes` to the binary buffer as a new buffer view and adds an accessor for it; returns the accessor's index.
-pub(super) fn append_accessor(glb: &mut Glb, bytes: &[u8], component_type: u32, kind: &str, count: usize) -> usize {
+pub(crate) fn append_accessor(glb: &mut Glb, bytes: &[u8], component_type: u32, kind: &str, count: usize) -> usize {
     glb.binary.resize(glb.binary.len().next_multiple_of(4), 0);
     let offset = glb.binary.len();
     glb.binary.extend_from_slice(bytes);
@@ -151,7 +151,7 @@ pub(super) fn append_accessor(glb: &mut Glb, bytes: &[u8], component_type: u32, 
 }
 
 /// Each node's parent.
-pub(super) fn parents(gltf: &Value) -> std::collections::HashMap<usize, usize> {
+pub(crate) fn parents(gltf: &Value) -> std::collections::HashMap<usize, usize> {
     let mut parents = std::collections::HashMap::new();
     for (i, node) in gltf["nodes"].as_array().into_iter().flatten().enumerate() {
         for child in node["children"].as_array().into_iter().flatten().filter_map(Value::as_u64) {
@@ -162,7 +162,7 @@ pub(super) fn parents(gltf: &Value) -> std::collections::HashMap<usize, usize> {
 }
 
 /// The world matrix of node `i` in the rest pose.
-pub(super) fn world_matrix(gltf: &Value, parents: &std::collections::HashMap<usize, usize>, mut i: usize) -> DMat4 {
+pub(crate) fn world_matrix(gltf: &Value, parents: &std::collections::HashMap<usize, usize>, mut i: usize) -> DMat4 {
     let mut matrix = local_matrix(&gltf["nodes"][i]);
     while let Some(&parent) = parents.get(&i) {
         matrix = local_matrix(&gltf["nodes"][parent]) * matrix;
