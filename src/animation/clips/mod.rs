@@ -134,6 +134,10 @@ fn calibration(library: &Library, file: &ClipFile, clip: &Clip) -> Option<Calibr
     if let Some(c) = stored.as_ref().filter(|c| !c.auto) {
         return Some(c.clone());
     }
+    // A user's file riggy cannot read (a typo while editing) is left alone, so the edit is not lost; until it is fixed riggy uses its default.
+    if path.exists() && Calibration::load(&path).is_none() {
+        return stored;
+    }
     let Some(name) = clip.neutral.as_deref() else { return stored };
     let found = clips::find(&library.clips, &format!("{}/{name}", file.pack)).or_else(|| clips::find(&library.clips, name));
     let neutral = match found.map(|n| Clip::load(&n.path, &n.skeletons_dir())) {

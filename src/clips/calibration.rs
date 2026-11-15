@@ -7,7 +7,7 @@
 //! - `approved`: the pack's clips checked on this avatar; riggy lists only these in the tray and plays only these from the behaviour;
 //! - `avatar.arm_hang`: degrees the avatar's arms hang out at ease (riggy's `[idle] arm_angle`).
 //!
-//! riggy writes the file from the neutral clip while `auto = true` and rewrites it when the clip, the bone map or `arm_angle` change. With `auto = false` it reads the values as they are, so they can be set by hand, also for a pack without a neutral clip. Where the user has no file yet, riggy starts from its default in `assets/animations/calibration/<pack>/<avatar>.toml`.
+//! riggy writes the file from the neutral clip while `auto = true` and rewrites it when the clip, the bone map or `arm_angle` change. With `auto = false` it reads the values as they are, so they can be set by hand, also for a pack without a neutral clip. A file riggy cannot read is never rewritten; riggy reports the error and uses its default until the file is fixed. Where the user has no file yet, riggy starts from its default in `assets/animations/calibration/<pack>/<avatar>.toml`.
 
 use std::collections::BTreeMap;
 use std::path::Path;

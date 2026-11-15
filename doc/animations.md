@@ -68,7 +68,7 @@ z = 0.03
 arm_hang = 12.0              # degrees the avatar's arms hang out at ease
 ```
 
-Without a calibration file or neutral clip, the trunk and arms point where the actor's do; for such a pack a file with `auto = false` can be written by hand. riggy's default Motifect map names `idle_neutral`.
+Without a calibration file or neutral clip, the trunk and arms point where the actor's do; for such a pack a file with `auto = false` can be written by hand. riggy's default Motifect map names `idle_neutral`. While `auto = true`, riggy overwrites edited values under `[actor]` and `[avatar]` with the measured ones and keeps `approved`. A file it cannot read is left as it is: riggy reports the error and uses its default until the file is fixed.
 
 Where the user has no file yet, riggy starts from its default in `assets/animations/calibration/<pack>/<avatar>.toml`, which keeps the `approved` list when riggy measures the values. A clip missing from `approved` is not offered in the tray's Play animation menu and not played by the behaviour; Advanced settings → "Show not approved animations in behaviour" and "… in the list" lift that.
 
