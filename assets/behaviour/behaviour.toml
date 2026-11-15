@@ -18,7 +18,7 @@ bones = "upper"
 
 # While silent: now and then one clip, between pauses of riggy's own idle motion.
 [idle]
-clips = ["idle_looking_around", "idle_relaxed_weight_shift", "idle_neutral", "07_01_004_Listing"]
+clips = ["idle_looking_around", "idle_relaxed_weight_shift", "idle_neutral"]
 intensity = 0.6
 fade = 1.5
 bones = "upper"
