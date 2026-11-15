@@ -4,8 +4,10 @@
 //! - `*.glb`: an avatar, into `~/.local/share/riggy/models/`, named after the file. A model whose bone nodes were flattened gets its rest pose back on the way (see [`rest_pose`]).
 //! - `*.glb` without a skeleton right after an avatar: clothing of that avatar, into its own folder (mapping file: `[[clothing]]`).
 //! - `*.vrm`: a VRM 1.0 avatar, into `~/.local/share/riggy/models/`; a VRM 0.x file is refused with a hint to convert it.
+//! - `*.fbx`: an animation clip, converted to a GLB of its skeleton and animation (see [`fbx`]), into `~/.local/share/riggy/animations/`, named after the file.
 //! - `*.png`, `*.jpg`: a texture of the avatar installed before it, into that model's own folder (`riggy::files::model_textures`), for a model whose file comes without its textures.
 
+mod fbx;
 mod rest_pose;
 mod vrm;
 
@@ -19,6 +21,7 @@ pub enum Installed {
     Avatar { name: String, path: PathBuf, rebuilt_joints: Option<usize> },
     Texture { avatar: String, path: PathBuf },
     Clothing { avatar: String, path: PathBuf },
+    Animation { name: String, path: PathBuf },
 }
 
 /// Installs `file` by its extension; a texture, or a GLB without a skeleton (clothing), goes to `avatar`, the avatar installed before it.
@@ -55,13 +58,20 @@ pub fn install(file: &Path, avatar: Option<&str>) -> Result<Installed, String> {
             write(&path, bytes)?;
             Ok(Installed::Avatar { name, path, rebuilt_joints: None })
         }
+        Some("fbx") => {
+            let bytes = std::fs::read(file).map_err(|err| format!("{}: {err}", file.display()))?;
+            let name = file.file_stem().and_then(|s| s.to_str()).ok_or("the file name is not valid UTF-8")?.to_owned();
+            let path = files::animation(&name);
+            write(&path, fbx::animation_glb(&bytes, &name).map_err(|err| format!("{}: {err}", file.display()))?)?;
+            Ok(Installed::Animation { name, path })
+        }
         Some("png" | "jpg" | "jpeg") => {
             let avatar = avatar.ok_or_else(|| format!("{}: a texture belongs to an avatar; name the avatar's .glb before it", file.display()))?;
             let path = files::model_textures(avatar).join(file_name);
             copy(file, &path)?;
             Ok(Installed::Texture { avatar: avatar.to_owned(), path })
         }
-        _ => Err(format!("{}: riggy installs speech models (.gguf), avatars (.glb, .vrm) and their textures (.png, .jpg)", file.display())),
+        _ => Err(format!("{}: riggy installs speech models (.gguf), avatars (.glb, .vrm), their textures (.png, .jpg) and animation clips (.fbx)", file.display())),
     }
 }
 

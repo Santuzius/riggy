@@ -70,6 +70,15 @@ Riggy brings mapping files for the GLB avatars below; a VRM avatar needs none. D
 
 Other avatars in GLB or VRM 1.0 format are installed the same way. A GLB avatar needs a mapping file that tells Riggy its bones and mouth shapes; see [doc/avatars.md](doc/avatars.md).
 
+#### Animations
+
+Riggy installs animation clips in FBX format into `~/.local/share/riggy/animations/`, each as a GLB of its skeleton and motion, named after the file. Avatars don't play them yet.
+
+|Pack|Author|Clips|Source|Install command|License|
+|---|---|---|---|---|---|
+|Locomotion Complete|Motifect|45: walking, running, turning, jumping, crouching, climbing|[motifect.io](https://motifect.io)|`riggy install ./Animations/*.fbx`|Free for personal and commercial use; no redistribution of the raw files (see the pack's `Documentation/README.txt`)|
+|Emotes and Social|Motifect|30: gestures, dances, greetings, emotions|[motifect.io](https://motifect.io)|`riggy install ./Animations/*.fbx`|as above|
+
 ### 3. Start
 
 Start Riggy using the entry from your start menu. To start it at login, tick "Start automatically › At login" in its tray menu.

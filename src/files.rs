@@ -72,6 +72,16 @@ pub fn default_config() -> String {
     default_config_file().and_then(|file| std::fs::read_to_string(file).ok()).unwrap_or_else(|| DEFAULT_CONFIG.into())
 }
 
+/// The folder of the installed animation clips.
+pub fn animations_dir() -> PathBuf {
+    data_dir().join("animations")
+}
+
+/// The file of the installed animation clip `name`.
+pub fn animation(name: &str) -> PathBuf {
+    animations_dir().join(format!("{name}.glb"))
+}
+
 /// The folder of the models.
 pub fn models_dir() -> PathBuf {
     data_dir().join("models")
