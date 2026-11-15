@@ -76,7 +76,7 @@ Without any animation packs installed you just get default not diversified idle 
 
 |Pack|Author|Approved for|Clips|Source|Install command|License|
 |---|---|---|---|---|---|---|
-|Locomotion|[Motifect](https://www.fab.com/sellers/Motifect/about)|Cyber-style girl (partly)|45: walking, running, turning, jumping, crouching, climbing|[link](https://www.fab.com/listings/021d0450-017e-4262-8769-03953338dacc)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
+|Locomotion|[Motifect](https://www.fab.com/sellers/Motifect/about)|Cyber-style girl (1/45)|45: walking, running, turning, jumping, crouching, climbing|[link](https://www.fab.com/listings/021d0450-017e-4262-8769-03953338dacc)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 |Emotes & Social|[Motifect](https://www.fab.com/sellers/Motifect/about)|None|30: gestures, dances, greetings, emotions|[link](https://www.fab.com/listings/9b07a055-d31d-41fc-96f6-c86f4aed7ae2)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 |Realistic Acting|[Mocap.in](https://www.fab.com/sellers/Mocap.in/about)|None|9: listening, sit idle, talking, talking angry|[link](https://www.fab.com/listings/b07dd992-3ef4-45d0-a6b8-47cddbaed25b)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 
