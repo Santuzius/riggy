@@ -72,12 +72,13 @@ Other avatars in GLB or VRM 1.0 format are installed the same way. A GLB avatar 
 
 #### Animations
 
-Riggy installs animation clips in FBX format into `~/.local/share/riggy/animations/`, each as a GLB of its skeleton and motion, named after the file. Avatars don't play them yet.
+Without any animation packs installed you just get default not diversified idle standing and walking behavior. To keep your avatar from looking so boring, you can install these packages:
 
 |Pack|Author|Clips|Source|Install command|License|
 |---|---|---|---|---|---|
-|Locomotion Complete|Motifect|45: walking, running, turning, jumping, crouching, climbing|[motifect.io](https://motifect.io)|`riggy install ./Animations/*.fbx`|Free for personal and commercial use; no redistribution of the raw files (see the pack's `Documentation/README.txt`)|
-|Emotes and Social|Motifect|30: gestures, dances, greetings, emotions|[motifect.io](https://motifect.io)|`riggy install ./Animations/*.fbx`|as above|
+|Locomotion|[Motifect](https://www.fab.com/sellers/Motifect/about)|45: walking, running, turning, jumping, crouching, climbing|[link](https://www.fab.com/listings/021d0450-017e-4262-8769-03953338dacc)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
+|Emotes & Social|[Motifect](https://www.fab.com/sellers/Motifect/about)|30: gestures, dances, greetings, emotions|[link](https://www.fab.com/listings/9b07a055-d31d-41fc-96f6-c86f4aed7ae2)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
+|Realistic Acting|[Mocap.in](https://www.fab.com/sellers/Mocap.in/about)|9: listening, sit idle, talking, talking angry|[link](https://www.fab.com/listings/b07dd992-3ef4-45d0-a6b8-47cddbaed25b)|`riggy install ./Animations/*.fbx`|[Fab Standard License](https://www.fab.com/eula)|
 
 ### 3. Start
 
