@@ -255,8 +255,11 @@ fn check(clip: &str, vrm: &str) {
     let bad: Vec<_> = twists.iter().filter(|(b, e)| **e > if **b == B::Head { 6.0 } else { 1.0 }).collect();
     assert!(bad.is_empty(), "bones turned about their axes against the clip (degrees): {bad:?}");
     let neutral = clip.neutral.as_deref().expect("the clip's bone map names no neutral clip");
-    let posture = posture_errors(&load_clip(neutral), &rig);
-    assert!(posture.len() == POSTURE.len() && posture.values().all(|e| *e < 0.5), "trunk, shoulder or leg bones off the avatar's posture in {neutral} (degrees): {posture:?}");
+    let neutral_clip = load_clip(neutral);
+    let posture = posture_errors(&neutral_clip, &rig);
+    // Every posture bone the clip's skeleton has (riggy's Unity rig has no UpperChest).
+    let expected = POSTURE.iter().filter(|b| neutral_clip.bones.contains_key(b.as_str())).count();
+    assert!(posture.len() == expected && posture.values().all(|e| *e < 0.5), "trunk, shoulder or leg bones off the avatar's posture in {neutral} (degrees): {posture:?}");
     let hang = hang_errors(&load_clip(neutral), &rig);
     assert!(hang.iter().all(|e| e.abs() < 1.0), "upper arms off the avatar's hang in {neutral} (degrees, left and right): {hang:?}");
 }
@@ -271,4 +274,40 @@ fn idle_neutral_on_cyber_ver101() {
 #[ignore = "reads the user's installed clips and avatar"]
 fn idle_neutral_on_cyborg_girl() {
     check("idle_neutral", "~/.local/share/riggy/models/cyborg_girl.glb");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_idle_on_cyber_ver101() {
+    check("animation_pack_basic_motions/idle", "~/.local/share/riggy/models/cyber_ver101.vrm");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_idle_on_cyborg_girl() {
+    check("animation_pack_basic_motions/idle", "~/.local/share/riggy/models/cyborg_girl.glb");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_turn_left_on_cyber_ver101() {
+    check("animation_pack_basic_motions/turn_left", "~/.local/share/riggy/models/cyber_ver101.vrm");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_turn_left_on_cyborg_girl() {
+    check("animation_pack_basic_motions/turn_left", "~/.local/share/riggy/models/cyborg_girl.glb");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_turn_right_on_cyber_ver101() {
+    check("animation_pack_basic_motions/turn_right", "~/.local/share/riggy/models/cyber_ver101.vrm");
+}
+
+#[test]
+#[ignore = "reads the user's installed clips and avatar"]
+fn basic_motions_turn_right_on_cyborg_girl() {
+    check("animation_pack_basic_motions/turn_right", "~/.local/share/riggy/models/cyborg_girl.glb");
 }

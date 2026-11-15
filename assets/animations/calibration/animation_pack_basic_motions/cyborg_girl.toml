@@ -1,0 +1,98 @@
+# riggy's posture calibration of this pack for one avatar (see doc/animations.md). riggy reads it as it is; "Reset to defaults" in the tray puts the default back.
+
+neutral = "idle"
+approved = []
+
+[actor]
+arm_hang = [
+    14.2,
+    14.4,
+]
+
+[actor.posture.chest]
+x = 0.85
+y = -5.11
+z = 0.55
+
+[actor.posture.head]
+x = -1.67
+y = -3.19
+z = -3.6
+
+[actor.posture.hips]
+x = -1.84
+y = 0.47
+z = 0.02
+
+[actor.posture.leftFoot]
+x = 0.11
+y = 18.17
+z = 2.5
+
+[actor.posture.leftLowerLeg]
+x = 8.75
+y = 7.84
+z = 2.53
+
+[actor.posture.leftShoulder]
+x = 0.74
+y = 0.82
+z = 0.38
+
+[actor.posture.leftToes]
+x = -0.27
+y = 18.15
+z = 2.5
+
+[actor.posture.leftUpperArm]
+x = 1.04
+y = -26.2
+z = -68.21
+
+[actor.posture.leftUpperLeg]
+x = -13.71
+y = -1.34
+z = 0.56
+
+[actor.posture.neck]
+x = -0.42
+y = -4.43
+z = -1.62
+
+[actor.posture.rightFoot]
+x = 1.23
+y = -24.97
+z = -1.67
+
+[actor.posture.rightLowerLeg]
+x = 8.24
+y = -14.8
+z = 0.04
+
+[actor.posture.rightShoulder]
+x = 0.96
+y = -2.15
+z = -2.71
+
+[actor.posture.rightToes]
+x = 1.23
+y = -24.97
+z = -1.67
+
+[actor.posture.rightUpperArm]
+x = 1.49
+y = 28.33
+z = 67.75
+
+[actor.posture.rightUpperLeg]
+x = -15.11
+y = -2.33
+z = 0.75
+
+[actor.posture.spine]
+x = -0.95
+y = 0.26
+z = 0.16
+
+[avatar]
+arm_hang = 12.0

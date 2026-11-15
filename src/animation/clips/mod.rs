@@ -223,7 +223,7 @@ pub struct ClipCover {
 struct Player {
     generation: u32,
     /// Retargeted clips by name and bones, `None` where a clip could not be read.
-    built: HashMap<(String, Bones), Option<Arc<Retargeted>>>,
+    built: HashMap<(String, Bones, bool), Option<Arc<Retargeted>>>,
     layers: Vec<Layer>,
     /// The behaviour's base idle clip, looping under the others.
     base: Option<Base>,
@@ -238,15 +238,15 @@ struct Player {
 
 impl Player {
     /// The clip `name` retargeted onto `h`, built once.
-    fn clip(&mut self, library: &Library, name: &str, bones: Bones, h: &Humanoid) -> Option<Arc<Retargeted>> {
+    fn clip(&mut self, library: &Library, name: &str, bones: Bones, legs: bool, h: &Humanoid) -> Option<Arc<Retargeted>> {
         self.built
-            .entry((name.to_owned(), bones))
+            .entry((name.to_owned(), bones, legs))
             .or_insert_with(|| {
                 let file = clips::find(&library.clips, name)?;
                 match Clip::load(&file.path, &file.skeletons_dir()) {
                     Ok(clip) => {
                         let calibration = calibration(library, file, &clip);
-                        Some(Arc::new(retarget(&clip, calibration.as_ref(), h, |b| bones.includes(b) && (self.legs || !is_leg(b)) && !is_face(b))))
+                        Some(Arc::new(retarget(&clip, calibration.as_ref(), h, |b| bones.includes(b) && (legs || !is_leg(b)) && !is_face(b))))
                     }
                     Err(err) => {
                         eprintln!("riggy: animation {}: {err}", file.key());
@@ -264,7 +264,7 @@ impl Player {
         let fresh: Vec<&String> = available.iter().copied().filter(|n| available.len() < 2 || Some(*n) != self.last.as_ref()).collect();
         let mut rng = rand::rng();
         let Some(name) = fresh.choose(&mut rng).map(|n| (*n).clone()) else { return false };
-        let Some(clip) = self.clip(library, &name, playing.bones, h) else { return false };
+        let Some(clip) = self.clip(library, &name, playing.bones, self.legs, h) else { return false };
         let fade = playing.fade.max(0.05);
         let room = clip.duration() - 2.0 * fade;
         let time = if from_anywhere && room > 1.0 { rng.random_range(0.0..room * 0.8) } else { 0.0 };
@@ -335,7 +335,7 @@ fn play(
             }
         }
 
-        *cover = ClipCover { legs: requests.legs, ..Default::default() };
+        *cover = ClipCover::default();
         // The layers' rotations of each bone, combined, on top of the base clip.
         let mut pose: HashMap<B, Quat> = HashMap::new();
         let base_wanted = b.enabled && requests.clips_on && !asked_playing;
@@ -351,6 +351,8 @@ fn play(
             }
         }
         let legs_mode = player.legs;
+        // Without turn clips the stance turns and steps itself, also while the clips move the legs.
+        let turn_clips = [&b.turn.left, &b.turn.right].iter().any(|names| names.iter().any(|n| clips::find(&library.clips, n).is_some()));
         for layer in &mut player.layers {
             layer.time += dt;
             if layer.time >= layer.clip.duration() - layer.fade {
@@ -389,11 +391,13 @@ fn play(
                 *q = turned * *q;
             }
         }
-        // With the clips moving the legs, the body turns only through turn clips: the stance waits for one, and takes its turn over at its end.
+        // With the clips moving the legs and turn clips installed, the body turns only through them: the stance waits for one, and takes its turn over at its end.
         if let Some(stance) = stance.as_deref_mut() {
-            stance.held = legs_mode;
+            stance.held = legs_mode && turn_clips;
         }
         cover.hips = pose.get(&B::Hips).copied().unwrap_or_default();
+        // The stance poses the legs only while no clip plays: riggy's own idle and turning.
+        cover.legs = legs_mode && (player.base.is_some() || !player.layers.is_empty());
         for (bone, rotation) in pose {
             h.rotate(bone, rotation, &mut transforms);
         }
@@ -430,7 +434,7 @@ fn update_base(player: &mut Player, library: &Library, h: &Humanoid, wanted: boo
     let name = b.idle.base.as_ref().filter(|_| wanted).and_then(|n| clips::find(&library.clips, n)).filter(|c| player.unapproved || library.approved.contains(&c.key())).map(ClipFile::key);
     if let Some(name) = &name
         && player.base.as_ref().is_none_or(|base| base.name != *name && base.weight <= 0.0)
-        && let Some(clip) = player.clip(library, name, Bones::All, h)
+        && let Some(clip) = player.clip(library, name, Bones::All, player.legs, h)
     {
         let fade = b.idle.playing.fade.max(0.05);
         player.base = Some(Base { name: name.clone(), clip, time: 0.0, weight: player.base.as_ref().map_or(0.0, |b| b.weight), fade });

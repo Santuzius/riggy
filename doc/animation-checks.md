@@ -6,6 +6,12 @@ Which clip has been checked on which avatar. How a pair is checked: [animation-a
 |---|---|---|---|
 |`motifect_locomotion_complete_v1_0_fbx/idle_neutral`|`cyber_ver101` (VRM)|fixed|`idle_neutral_on_cyber_ver101`|
 |`motifect_locomotion_complete_v1_0_fbx/idle_neutral`|`cyborg_girl` (GLB)|shoulders fixed, to be checked in the app|`idle_neutral_on_cyborg_girl`|
+|`animation_pack_basic_motions/idle`|`cyber_ver101` (VRM)|checked|`basic_motions_idle_on_cyber_ver101`|
+|`animation_pack_basic_motions/idle`|`cyborg_girl` (GLB)|checked|`basic_motions_idle_on_cyborg_girl`|
+|`animation_pack_basic_motions/turn_left`|`cyber_ver101` (VRM)|checked|`basic_motions_turn_left_on_cyber_ver101`|
+|`animation_pack_basic_motions/turn_left`|`cyborg_girl` (GLB)|checked|`basic_motions_turn_left_on_cyborg_girl`|
+|`animation_pack_basic_motions/turn_right`|`cyber_ver101` (VRM)|checked|`basic_motions_turn_right_on_cyber_ver101`|
+|`animation_pack_basic_motions/turn_right`|`cyborg_girl` (GLB)|checked|`basic_motions_turn_right_on_cyborg_girl`|
 
 ## Tools
 

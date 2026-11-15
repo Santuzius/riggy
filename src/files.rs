@@ -20,9 +20,11 @@ const DEFAULT_MAPPINGS: [(&str, &str); 3] = [
 ];
 
 /// Default calibration files built in, by pack and avatar (`clips::calibration`).
-const DEFAULT_CALIBRATIONS: [(&str, &str, &str); 2] = [
+const DEFAULT_CALIBRATIONS: [(&str, &str, &str); 4] = [
     ("motifect_locomotion_complete_v1_0_fbx", "cyber_ver101", include_str!("../assets/animations/calibration/motifect_locomotion_complete_v1_0_fbx/cyber_ver101.toml")),
     ("motifect_locomotion_complete_v1_0_fbx", "cyborg_girl", include_str!("../assets/animations/calibration/motifect_locomotion_complete_v1_0_fbx/cyborg_girl.toml")),
+    ("animation_pack_basic_motions", "cyber_ver101", include_str!("../assets/animations/calibration/animation_pack_basic_motions/cyber_ver101.toml")),
+    ("animation_pack_basic_motions", "cyborg_girl", include_str!("../assets/animations/calibration/animation_pack_basic_motions/cyborg_girl.toml")),
 ];
 
 /// riggy's default calibration of the animation pack `pack` for the avatar `avatar`, if it has one.

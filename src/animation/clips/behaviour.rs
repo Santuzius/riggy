@@ -134,7 +134,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         assert_eq!(b.talk.playing.intensity, 0.2);
         assert_eq!(b.talk.clips.len(), 3);
-        assert_eq!(b.turn.left, ["turn_left"]);
+        assert!(b.turn.left.is_empty());
         assert!(b.enabled);
     }
 }

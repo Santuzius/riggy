@@ -27,14 +27,14 @@ bones = "upper"
 # Seconds between two clips, a random value in this range.
 pause = [10.0, 30.0]
 
-# When the avatar turns: the clip for the direction, while the feet step after the body.
+# When the avatar turns: the clip for the direction, while the feet step after the body. Without clips riggy's own stepping turns the avatar; uncomment to use a pack's turn clips.
 [turn]
-left = ["turn_left"]
-right = ["turn_right"]
-around = ["turn_180"]
+#left = ["turn_left"]
+#right = ["turn_right"]
+#around = ["walking_turn_180"]
 intensity = 0.8
 fade = 0.3
 bones = "upper"
 # Degrees left to turn from which a clip starts; from `around_angle` on, the clip for turning around.
-min_angle = 40.0
-around_angle = 135.0
+#min_angle = 40.0
+#around_angle = 135.0
