@@ -14,3 +14,8 @@ gravity = 0.3
 hit_radius = 0.02
 legs = [0.07, 0.06]
 
+
+# The coat's inner layer is painted dark navy in the middle, which shows as two black strips beside the front flap; its triangles there are cut away.
+[[cut]]
+material = "N00_007_01_Tops_01_CLOTH_01"
+uv = [0.445, 0.62, 0.555, 0.82]
