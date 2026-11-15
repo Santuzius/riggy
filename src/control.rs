@@ -1,6 +1,6 @@
 //! The avatar's sockets: speech comes in on one, commands from the tray on the other.
 //!
-//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
+//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}`, `{"clips":false}`, `{"play":"pack/clip"}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
 
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
@@ -35,7 +35,7 @@ impl LipsyncMode {
 }
 
 /// A command for the running avatar.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Command {
     /// Let clicks through to the windows underneath, or take them (then dragging moves the window).
@@ -46,6 +46,10 @@ pub enum Command {
     Zoom(f32),
     /// Turns the figure about its vertical axis, in degrees; positive turns it to its left.
     Turn(f32),
+    /// Whether the behaviour files' clips play (off: only riggy's own motion).
+    Clips(bool),
+    /// Plays an installed clip once, by `pack/clip`, whether clips are on or not.
+    Play(String),
     /// Close the avatar.
     Quit,
 }
@@ -85,6 +89,7 @@ mod tests {
         assert_eq!(serde_json::to_string(&Command::Lipsync(LipsyncMode::Text)).unwrap(), r#"{"lipsync":"text"}"#);
         assert_eq!(serde_json::to_string(&Command::Zoom(0.5)).unwrap(), r#"{"zoom":0.5}"#);
         assert_eq!(serde_json::to_string(&Command::Turn(-20.0)).unwrap(), r#"{"turn":-20.0}"#);
+        assert_eq!(serde_json::to_string(&Command::Play("pack/wave".into())).unwrap(), r#"{"play":"pack/wave"}"#);
         assert_eq!(serde_json::to_string(&Command::Quit).unwrap(), r#""quit""#);
     }
 

@@ -71,11 +71,38 @@ impl RiggyTray {
             radio_menu("Lip sync", modes, &self.settings.lipsync, |tray, mode| tray.choose_and_send(|s| s.lipsync = mode, |s| AvatarCommand::Lipsync(s.lipsync))),
             radio_menu("Size", labelled(&SIZES), &self.settings.size, RiggyTray::set_size),
             // Off: the left mouse button moves Riggy, the right one turns it, the wheel zooms.
+            checkmark("Animation clips", self.settings.clips, |tray| {
+                let on = !tray.settings.clips;
+                tray.choose_and_send(|s| s.clips = on, |s| AvatarCommand::Clips(s.clips));
+            }),
+            self.play_menu(),
             checkmark("Click-through", self.settings.click_through, |tray| {
                 let on = !tray.settings.click_through;
                 tray.choose_and_send(|s| s.click_through = on, |s| AvatarCommand::ClickThrough(s.click_through));
             }),
         ]
+    }
+
+    /// Every installed clip, one submenu per pack; choosing one plays it once.
+    fn play_menu(&self) -> MenuItem<Self> {
+        let clips = riggy::clips::installed();
+        let mut packs: Vec<MenuItem<Self>> = Vec::new();
+        for pack in clips.iter().map(|c| c.pack.clone()).collect::<std::collections::BTreeSet<_>>() {
+            let items = clips
+                .iter()
+                .filter(|c| c.pack == pack)
+                .map(|c| {
+                    let key = c.key();
+                    StandardItem { label: c.name.replace('_', " "), activate: Box::new(move |tray: &mut Self| tray.avatar.send(&[AvatarCommand::Play(key.clone())])), ..Default::default() }.into()
+                })
+                .collect();
+            packs.push(submenu(&pack.replace('_', " "), items));
+        }
+        let mut menu = submenu("Play animation", packs);
+        if let MenuItem::SubMenu(m) = &mut menu {
+            m.enabled = self.avatar_running && !clips.is_empty();
+        }
+        menu
     }
 
     fn start_menu(&self) -> MenuItem<Self> {

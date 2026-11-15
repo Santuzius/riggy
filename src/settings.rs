@@ -34,6 +34,8 @@ pub struct Settings {
     pub start_with_mcp: bool,
     /// Whether `riggy-mcp` tells the agent when and how to speak; off for users who write their own instructions.
     pub mcp_instructions: bool,
+    /// Whether the avatar plays the clips of the behaviour files.
+    pub clips: bool,
 }
 
 impl Default for Settings {
@@ -51,6 +53,7 @@ impl Default for Settings {
             autostart: false,
             start_with_mcp: true,
             mcp_instructions: true,
+            clips: true,
         }
     }
 }

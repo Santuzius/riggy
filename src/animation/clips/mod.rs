@@ -1,6 +1,6 @@
 //! Animation clips on humanoid avatars, as the behaviour files say: a turn clip while the avatar turns, talking clips while riggy speaks, now and then an idle clip in silence.
 //!
-//! A clip blends in and out over its set's `fade` and moves the avatar's bones only `intensity` of the way; riggy's procedural idle, stance and lip sync stay on top. Sets whose clips are not installed play nothing. The behaviour files, the installed clips and their bone maps are polled once a second; a change takes effect at once.
+//! A clip blends in and out over its set's `fade` and moves the avatar's bones only `intensity` of the way; riggy's procedural idle, stance and lip sync stay on top. Sets whose clips are not installed play nothing. The tray switches the behaviour's clips off and on (`Command::Clips`) and plays a single clip on request (`Command::Play`), also while they are off. The behaviour files, the installed clips and their bone maps are polled once a second; a change takes effect at once.
 
 mod behaviour;
 mod retarget;
@@ -20,7 +20,9 @@ use self::retarget::{Retargeted, retarget};
 use super::stance::Stance;
 use crate::avatar::{AvatarSet, Humanoid};
 use crate::config::Config;
+use crate::commands::Received;
 use crate::speech::Voice;
+use riggy::control::Command;
 
 /// Degrees left to turn below which a turn counts as done once the feet stand.
 const TURN_DONE: f32 = 3.0;
@@ -33,7 +35,7 @@ pub struct ClipsPlugin;
 
 impl Plugin for ClipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Library>().add_systems(Update, (reload, play.in_set(AvatarSet::Pose).in_set(ClipPose)).chain());
+        app.init_resource::<Library>().init_resource::<Requests>().add_systems(Update, (reload, listen, play.in_set(AvatarSet::Pose).in_set(ClipPose)).chain());
     }
 }
 
@@ -85,11 +87,39 @@ fn reload(time: Res<Time>, config: Res<Config>, mut library: ResMut<Library>) {
     library.generation += 1;
 }
 
+/// What the tray asked for: whether the behaviour's clips play, and clips to play once.
+#[derive(Resource)]
+struct Requests {
+    clips_on: bool,
+    play: Vec<String>,
+}
+
+impl Default for Requests {
+    fn default() -> Self {
+        Self { clips_on: true, play: Vec::new() }
+    }
+}
+
+fn listen(mut received: MessageReader<Received>, mut requests: ResMut<Requests>) {
+    for Received(command) in received.read() {
+        match command {
+            Command::Clips(on) => requests.clips_on = *on,
+            Command::Play(name) => requests.play.push(name.clone()),
+            _ => {}
+        }
+    }
+}
+
+/// How a clip asked for from the tray plays: on the whole body, fully.
+const ASKED: Playing = Playing { intensity: 1.0, fade: 0.3, bones: Bones::All };
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Talk,
     Idle,
     Turn,
+    /// Asked for from the tray: plays to its end, whatever the behaviour says.
+    Asked,
 }
 
 /// A clip being played on an avatar.
@@ -171,11 +201,22 @@ fn play(
     mut commands: Commands,
     time: Res<Time>,
     library: Res<Library>,
+    mut requests: ResMut<Requests>,
     voice: Res<Voice>,
     mut avatars: Query<(Entity, &Humanoid, Option<&Stance>, Option<&mut Player>)>,
     mut transforms: Query<&mut Transform>,
 ) {
     let dt = time.delta_secs();
+    // An ask waits for the next frame while there is no avatar to play it on: one sent right after startup arrives before the avatar is loaded.
+    if !avatars.iter_mut().any(|(_, _, _, player)| player.is_some()) {
+        for (entity, _, _, player) in &mut avatars {
+            if player.is_none() {
+                commands.entity(entity).insert(Player::default());
+            }
+        }
+        return;
+    }
+    let asked = std::mem::take(&mut requests.play);
     for (entity, h, stance, player) in &mut avatars {
         let Some(mut player) = player else {
             commands.entity(entity).insert(Player::default());
@@ -184,11 +225,20 @@ fn play(
         if player.generation != library.generation {
             *player = Player { generation: library.generation, ..Default::default() };
         }
+        for name in &asked {
+            if !player.start(&library, Kind::Asked, std::slice::from_ref(name), &ASKED, h, false) {
+                eprintln!("riggy: no animation {name}");
+            }
+        }
         let b = &library.behaviour;
-        if b.enabled {
-            choose(&mut player, &library, h, stance, voice.speaking, dt);
-        } else {
-            player.layers.iter_mut().for_each(|l| l.on = false);
+        // A clip asked for plays to its end; otherwise the behaviour chooses, unless its clips are off.
+        let asked_playing = player.current().is_some_and(|l| l.kind == Kind::Asked);
+        if !asked_playing {
+            if b.enabled && requests.clips_on {
+                choose(&mut player, &library, h, stance, voice.speaking, dt);
+            } else {
+                player.layers.iter_mut().for_each(|l| l.on = false);
+            }
         }
 
         for layer in &mut player.layers {

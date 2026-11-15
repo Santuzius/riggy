@@ -12,7 +12,7 @@ use riggy::control::{self, Command};
 use crate::config::Config;
 
 /// A command that arrived on the control socket this frame.
-#[derive(Message, Clone, Copy, Debug)]
+#[derive(Message, Clone, Debug)]
 pub struct Received(pub Command);
 
 pub struct CommandsPlugin;

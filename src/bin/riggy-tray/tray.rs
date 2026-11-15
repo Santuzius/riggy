@@ -184,7 +184,7 @@ impl RiggyTray {
 
 /// What a freshly started avatar needs to match the choices it does not read at startup.
 fn avatar_commands(settings: &Settings) -> Vec<AvatarCommand> {
-    vec![AvatarCommand::ClickThrough(settings.click_through), AvatarCommand::Lipsync(settings.lipsync)]
+    vec![AvatarCommand::ClickThrough(settings.click_through), AvatarCommand::Lipsync(settings.lipsync), AvatarCommand::Clips(settings.clips)]
 }
 
 /// The label of a lip-sync mode in the menu.

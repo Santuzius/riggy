@@ -62,16 +62,16 @@ fn toggle_click_through(keys: Res<ButtonInput<KeyCode>>, mut cursors: Query<&mut
 /// Click-through and closing as the tray asks.
 fn obey(mut commands: MessageReader<Received>, mut cursors: Query<&mut CursorOptions, With<PrimaryWindow>>, mut exit: MessageWriter<AppExit>) {
     for Received(command) in commands.read() {
-        match *command {
+        match command {
             Command::ClickThrough(on) => {
                 for mut cursor in &mut cursors {
-                    cursor.hit_test = !on;
+                    cursor.hit_test = !*on;
                 }
             }
             Command::Quit => {
                 exit.write(AppExit::Success);
             }
-            Command::Lipsync(_) | Command::Zoom(_) | Command::Turn(_) => {}
+            Command::Lipsync(_) | Command::Zoom(_) | Command::Turn(_) | Command::Clips(_) | Command::Play(_) => {}
         }
     }
 }
