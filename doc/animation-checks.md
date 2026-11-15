@@ -4,7 +4,7 @@ Which clip has been checked on which avatar. How a pair is checked: [animation-a
 
 |Clip|Avatar|Status|Test|
 |---|---|---|---|
-|`motifect_locomotion_complete_v1_0_fbx/idle_neutral`|`cyber_ver101` (VRM)|fixed, waiting for the look in the tray|`idle_neutral_on_cyber_ver101`|
+|`motifect_locomotion_complete_v1_0_fbx/idle_neutral`|`cyber_ver101` (VRM)|fixed|`idle_neutral_on_cyber_ver101`|
 
 ## Tools
 
