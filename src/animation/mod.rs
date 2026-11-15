@@ -4,6 +4,7 @@ mod blink;
 mod clips;
 mod idle;
 mod machine;
+mod pose_log;
 pub mod mouth;
 pub mod stance;
 
@@ -13,6 +14,6 @@ pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((stance::StancePlugin, clips::ClipsPlugin, idle::IdlePlugin, blink::BlinkPlugin, mouth::MouthPlugin, machine::MachinePlugin));
+        app.add_plugins((stance::StancePlugin, clips::ClipsPlugin, idle::IdlePlugin, blink::BlinkPlugin, mouth::MouthPlugin, machine::MachinePlugin, pose_log::PoseLogPlugin));
     }
 }

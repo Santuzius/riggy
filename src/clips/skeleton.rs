@@ -6,12 +6,14 @@ use std::path::Path;
 use serde::Deserialize;
 
 /// The bone maps riggy brings, by file name, for the skeletons of known packs; `riggy install` copies the one that fits into a new pack.
-pub const DEFAULT_SKELETONS: [(&str, &str); 2] = [("motifect", include_str!("../../assets/skeletons/motifect.toml")), ("mixamo", include_str!("../../assets/skeletons/mixamo.toml"))];
+pub const DEFAULT_SKELETONS: [(&str, &str); 2] = [("motifect", include_str!("../../assets/animations/skeletons/motifect.toml")), ("mixamo", include_str!("../../assets/animations/skeletons/mixamo.toml"))];
 
 #[derive(Deserialize, Debug, Clone, Default)]
 pub struct Skeleton {
     /// Humanoid bone name (VRM 1.0) → node name.
     pub bones: BTreeMap<String, String>,
+    /// A clip in which the actor stands still in their natural posture (name as in the behaviour files); riggy calibrates each avatar's trunk posture on it for every clip of this skeleton.
+    pub neutral: Option<String>,
 }
 
 impl Skeleton {

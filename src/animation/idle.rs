@@ -6,6 +6,7 @@ use std::f32::consts::TAU;
 
 use bevy::prelude::*;
 
+use super::clips::ClipCover;
 use super::stance::{self, Stance};
 use crate::avatar::{AvatarSet, ExpressionPreset, Expressions, Humanoid, HumanoidBone as B};
 use crate::config::Config;
@@ -48,27 +49,31 @@ impl Default for Liveliness {
     }
 }
 
-fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness: Local<Liveliness>, avatars: Query<(&Humanoid, Option<&Stance>)>, mut transforms: Query<&mut Transform>) {
+fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness: Local<Liveliness>, avatars: Query<(&Humanoid, Option<&Stance>, Option<&ClipCover>)>, mut transforms: Query<&mut Transform>) {
     let c = &config.idle;
     let t = time.elapsed_secs();
     let rad = f32::to_radians;
     let wanted = if voice.speaking { c.speaking_calm.clamp(0.0, 1.0) } else { 1.0 };
     liveliness.0 += (wanted - liveliness.0) * (1.0 - (-time.delta_secs() / CALM_TIME).exp());
     let live = liveliness.0;
-    for (h, stance) in &avatars {
+    for (h, stance, cover) in &avatars {
+        // Each part of the motion gives way to a clip that moves the same bones, so the two do not add up.
+        let cover = cover.copied().unwrap_or_default();
+        let (torso, neck, arms) = (1.0 - cover.torso, 1.0 - cover.head, 1.0 - cover.arms);
+
         // Breathing: the chest lifts and leans back a little on the in-breath.
         let breath = (TAU * c.breath_rate * t).sin();
-        let lift = Quat::from_rotation_x(-rad(c.breath_angle) * 0.5 * breath);
+        let lift = Quat::from_rotation_x(-rad(c.breath_angle) * 0.5 * breath * torso);
         h.rotate(B::Chest, lift, &mut transforms);
         h.rotate(B::UpperChest, lift, &mut transforms);
         h.rotate(B::Neck, lift.inverse(), &mut transforms);
 
         // Weight shift: the pelvis moves sideways and its loaded side rises; the legs bend so the feet stay put, the spine so the head stays upright.
-        let sway = live * drift(t, c.sway_rate, 0.0);
+        let sway = live * drift(t, c.sway_rate, 0.0) * torso;
         let shift = Vec3::X * c.sway_shift * h.height * sway;
         let roll = rad(c.sway_angle) * sway;
         match stance {
-            Some(stance) => stance::stand(h, stance, shift, Quat::from_rotation_z(roll), &mut transforms),
+            Some(stance) => stance::stand(h, stance, shift, Quat::from_rotation_z(roll), cover.hips, &mut transforms),
             None => {
                 h.translate(B::Hips, shift, &mut transforms);
                 h.rotate(B::Hips, Quat::from_rotation_z(roll), &mut transforms);
@@ -78,7 +83,7 @@ fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness:
         h.rotate(B::Chest, Quat::from_rotation_z(-roll * 0.4), &mut transforms);
 
         // Head: slow drift in all three axes, split between neck and head.
-        let angle = live * rad(c.head_angle);
+        let angle = live * rad(c.head_angle) * neck;
         let head = Quat::from_euler(
             EulerRot::YXZ,
             angle * drift(t, c.head_rate, 0.4),
@@ -89,14 +94,14 @@ fn idle(time: Res<Time>, config: Res<Config>, voice: Res<Voice>, mut liveliness:
         h.rotate(B::Neck, half, &mut transforms);
         h.rotate(B::Head, half.inverse() * head, &mut transforms);
 
-        // Arms: bring the upper arms to `arm_angle` from vertical, bend the elbows a little; they swing slightly with the breath.
+        // Arms: bring the upper arms to `arm_angle` from vertical, bend the elbows a little; they swing slightly with the breath. 
         for (upper, lower, side) in [(B::LeftUpperArm, B::LeftLowerArm, 1.0), (B::RightUpperArm, B::RightLowerArm, -1.0)] {
             let (Some(shoulder), Some(elbow)) = (h.position(upper), h.position(lower)) else { continue };
             let arm = elbow - shoulder;
             let rest = (arm.x * side).atan2(-arm.y);
             let target = rad(c.arm_angle) + rad(0.3 * c.breath_angle) * breath;
-            h.rotate(upper, Quat::from_rotation_z(side * (target - rest)), &mut transforms);
-            h.rotate(lower, Quat::from_rotation_x(-rad(c.elbow_angle)), &mut transforms);
+            h.rotate(upper, Quat::from_rotation_z(side * (target - rest) * arms), &mut transforms);
+            h.rotate(lower, Quat::from_rotation_x(-rad(c.elbow_angle) * arms), &mut transforms);
         }
     }
 }

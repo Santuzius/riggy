@@ -195,7 +195,7 @@ fn step(time: Res<Time>, mut avatars: Query<(&mut Stance, &mut Transform), With<
 }
 
 /// Moves and turns the hips as idle motion asks (`sway` in avatar space, `roll` about the hips' pivot), turns the pelvis partly towards the feet and the spine back, shifts them over the standing foot during a step, lowers them as far as the legs need to reach the floor, and bends the legs so the ankles reach their places.
-pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, transforms: &mut Query<&mut Transform>) {
+pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, clip_hips: Quat, transforms: &mut Query<&mut Transform>) {
     const LEGS: [(B, B, B); 2] = [(B::LeftUpperLeg, B::LeftLowerLeg, B::LeftFoot), (B::RightUpperLeg, B::RightLowerLeg, B::RightFoot)];
     let Some(hips) = h.position(B::Hips) else { return };
     let twist = Quat::from_rotation_y(PELVIS_FOLLOW * stance.feet_lag());
@@ -209,7 +209,9 @@ pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, transforms: 
         let standing = stance.target(1 - stepping).0;
         shift += STEP_SHIFT * weight * Vec3::new(standing.x - hips.x, 0.0, standing.z - hips.z);
     }
-    let hip_joint = |rest: Vec3| hips + shift + roll * (rest - hips);
+    // The pelvis as it ends up: a clip's turn of the hips (already applied), then the roll.
+    let pelvis = roll * clip_hips;
+    let hip_joint = |rest: Vec3| hips + shift + pelvis * (rest - hips);
     // No leg stretches further than in the rest pose: where one would, the hips sink.
     let mut sink = 0.0f32;
     for (i, &(_, _, _, hip0, _, ankle0)) in legs.iter().enumerate() {
@@ -229,7 +231,7 @@ pub fn stand(h: &Humanoid, stance: &Stance, sway: Vec3, roll: Quat, transforms: 
 
     for (i, &(upper, lower, foot, hip0, knee0, ankle0)) in legs.iter().enumerate() {
         let (target, heading) = stance.target(i);
-        let pose = leg_pose(hip0, knee0, ankle0, hip_joint(hip0) - Vec3::Y * sink, roll, target, heading);
+        let pose = leg_pose(hip0, knee0, ankle0, hip_joint(hip0) - Vec3::Y * sink, pelvis, target, heading);
         h.rotate(upper, pose.thigh, transforms);
         h.rotate(lower, pose.knee, transforms);
         h.rotate(foot, pose.foot, transforms);

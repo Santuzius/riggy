@@ -83,9 +83,11 @@ impl RiggyTray {
         ]
     }
 
-    /// Every installed clip, one submenu per pack; choosing one plays it once.
+    /// Every installed clip approved on the avatar (all with "Show not approved animations in the list"), one submenu per pack; choosing one plays it once.
     fn play_menu(&self) -> MenuItem<Self> {
-        let clips = riggy::clips::installed();
+        let model = self.model();
+        let all = self.settings.unapproved_in_list;
+        let clips: Vec<_> = riggy::clips::installed().into_iter().filter(|c| all || c.approved(&model)).collect();
         let mut packs: Vec<MenuItem<Self>> = Vec::new();
         for pack in clips.iter().map(|c| c.pack.clone()).collect::<std::collections::BTreeSet<_>>() {
             let items = clips
@@ -126,6 +128,14 @@ impl RiggyTray {
                 checkmark("Default MCP instructions", self.settings.mcp_instructions, |tray| {
                     let on = !tray.settings.mcp_instructions;
                     tray.choose(|s| s.mcp_instructions = on);
+                }),
+                checkmark("Show not approved animations in behaviour", self.settings.unapproved_in_behaviour, |tray| {
+                    let on = !tray.settings.unapproved_in_behaviour;
+                    tray.choose_and_send(|s| s.unapproved_in_behaviour = on, |s| AvatarCommand::Unapproved(s.unapproved_in_behaviour));
+                }),
+                checkmark("Show not approved animations in the list", self.settings.unapproved_in_list, |tray| {
+                    let on = !tray.settings.unapproved_in_list;
+                    tray.choose(|s| s.unapproved_in_list = on);
                 }),
                 MenuItem::Separator,
                 action("Settings file", "document-edit", |_| open(&files::user_config())),

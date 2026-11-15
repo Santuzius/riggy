@@ -1,5 +1,8 @@
 # Which node of a clip's skeleton is which humanoid bone (VRM 1.0 names), here for the Motifect packs. riggy uses the first file in this folder whose nodes all exist in a clip; changes take effect at once.
 
+# The clip in which the actor stands still in their natural posture: riggy calibrates each avatar's trunk on it, so the avatar keeps its own posture and moves only as far as the actor leaves theirs.
+neutral = "idle_neutral"
+
 [bones]
 hips = "Hips"
 spine = "Spine1"

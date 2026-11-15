@@ -35,6 +35,8 @@ pub struct Set {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct IdleSet {
+    /// The clip that loops whenever no other clip plays, in place of riggy's own idle motion; only where it is approved on the avatar.
+    pub base: Option<String>,
     pub clips: Vec<String>,
     pub pause: [f32; 2],
     #[serde(flatten)]
@@ -88,7 +90,7 @@ impl Default for Playing {
 
 impl Default for IdleSet {
     fn default() -> Self {
-        Self { clips: Vec::new(), pause: [10.0, 30.0], playing: Playing::default() }
+        Self { base: None, clips: Vec::new(), pause: [10.0, 30.0], playing: Playing::default() }
     }
 }
 

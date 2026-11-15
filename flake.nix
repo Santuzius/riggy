@@ -75,7 +75,7 @@
         postInstall = ''
           mkdir -p $out/share/riggy/assets $out/share/kwin/scripts
           cp riggy.toml $out/share/riggy/
-          cp -r assets/avatars $out/share/riggy/assets/
+          cp -r assets/avatars assets/animations $out/share/riggy/assets/
           cp -r kwin/riggy $out/share/kwin/scripts/
           install -Dm644 assets/riggy.desktop $out/share/applications/riggy.desktop
           install -Dm644 assets/icons/tray-tts-avatar.svg $out/share/icons/hicolor/scalable/apps/riggy.svg

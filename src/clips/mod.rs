@@ -2,11 +2,14 @@
 //!
 //! A clip is a GLB of a skeleton and one animation (written by `riggy install`, see `install::fbx`). A bone map ([`Skeleton`]) says which of its nodes is which humanoid bone; [`Clip::load`] reads a clip through the first map of its pack whose nodes all exist in it, and gives each mapped bone's avatar-space rotation in every frame.
 
+pub mod calibration;
 mod clip;
+pub mod rig;
 mod skeleton;
 
 use std::path::{Path, PathBuf};
 
+pub use calibration::Calibration;
 pub use clip::{Clip, ClipBone};
 pub use skeleton::{DEFAULT_SKELETONS, Skeleton};
 
@@ -24,6 +27,22 @@ impl ClipFile {
     /// The clip's name as the behaviour files give it: `pack/clip`.
     pub fn key(&self) -> String {
         format!("{}/{}", self.pack, self.name)
+    }
+
+    /// The pack's calibration file for the avatar `avatar` ([`calibration`]).
+    pub fn calibration_file(&self, avatar: &str) -> PathBuf {
+        files::animation_pack(&self.pack).join("calibration").join(format!("{avatar}.toml"))
+    }
+
+    /// The pack's calibration for `avatar`: the user's file, else riggy's default.
+    pub fn calibration(&self, avatar: &str) -> Option<Calibration> {
+        let path = self.calibration_file(avatar);
+        Calibration::load(&path).or_else(|| Calibration::parse(&files::default_calibration(&self.pack, avatar)?, &format!("default calibration of {} for {avatar}", self.pack)))
+    }
+
+    /// Whether the clip is approved on `avatar` in its pack's calibration.
+    pub fn approved(&self, avatar: &str) -> bool {
+        self.calibration(avatar).is_some_and(|c| c.approves(&self.name))
     }
 
     /// The folder of the pack's bone maps.
@@ -83,6 +102,15 @@ mod tests {
     fn a_pack_name_is_plain() {
         assert_eq!(pack_name("Realistic Acting Animation Mocap Pack (9 Animations)"), "realistic_acting_animation_mocap_pack_9_animations");
         assert_eq!(pack_name("motifect_locomotion_complete_v1_0_fbx"), "motifect_locomotion_complete_v1_0_fbx");
+    }
+
+    #[test]
+    fn the_default_calibration_approves_only_checked_clips() {
+        let clip = |name: &str| ClipFile { pack: "motifect_locomotion_complete_v1_0_fbx".into(), name: name.into(), path: PathBuf::new() };
+        let c = Calibration::parse(&files::default_calibration("motifect_locomotion_complete_v1_0_fbx", "cyber_ver101").unwrap(), "default").unwrap();
+        assert!(c.approves(&clip("idle_neutral").name));
+        assert!(!c.approves(&clip("run_forward").name));
+        assert!(files::default_calibration("motifect_locomotion_complete_v1_0_fbx", "nobody").is_none());
     }
 
     #[test]

@@ -14,6 +14,8 @@ pub struct Clip {
     pub frames: usize,
     /// Humanoid bone name (VRM 1.0) → the bone.
     pub bones: HashMap<String, ClipBone>,
+    /// The neutral clip its bone map names ([`super::Skeleton::neutral`]).
+    pub neutral: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +90,6 @@ impl Clip {
                 .collect();
             bones.insert(bone.clone(), ClipBone { rest_position: rest_position.as_vec3(), rest_rotation: rest_rotation.normalize().as_quat(), rotations });
         }
-        Ok(Self { fps, frames, bones })
+        Ok(Self { fps, frames, bones, neutral: skeleton.neutral.clone() })
     }
 }

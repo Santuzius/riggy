@@ -1,0 +1,44 @@
+# riggy's posture calibration of this pack for one avatar (see doc/animations.md). While auto = true riggy fills it in from the neutral clip; set auto = false to keep values set by hand.
+
+auto = true
+neutral = "idle_neutral"
+approved = ["idle_neutral"]
+
+[actor]
+arm_hang = [
+    4.71,
+    4.52,
+]
+
+[actor.posture.chest]
+x = 0.31
+y = -0.63
+z = 0.03
+
+[actor.posture.head]
+x = -0.45
+y = -0.45
+z = 0.35
+
+[actor.posture.hips]
+x = 0.25
+y = -0.59
+z = -0.01
+
+[actor.posture.neck]
+x = 0.52
+y = -0.67
+z = 0.3
+
+[actor.posture.spine]
+x = 0.32
+y = -0.56
+z = -0.0
+
+[actor.posture.upperChest]
+x = 0.7
+y = -0.62
+z = 0.11
+
+[avatar]
+arm_hang = 12.0

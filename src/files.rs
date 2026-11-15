@@ -2,7 +2,7 @@
 //!
 //! - `~/.config/riggy/` (`$XDG_CONFIG_HOME/riggy`): `riggy.toml` with the user's settings, only what differs from the defaults; the tray's `settings.toml`; and the file `speech-off` while speech is switched off.
 //! - `~/.local/share/riggy/` (`$XDG_DATA_HOME/riggy`): the models, `models/NAME.glb` or `models/NAME.vrm`, which are not part of riggy, and their mapping files, `avatars/NAME.toml`, copied from riggy's default the first time a model is used.
-//! - The defaults that come with riggy: `riggy.toml` and `assets/avatars/` in `$RIGGY_DATA_DIR` (the package's `share/riggy`; the dev shell points it at the checkout), built into the program as well.
+//! - The defaults that come with riggy: `riggy.toml`, `assets/avatars/` and `assets/animations/` in `$RIGGY_DATA_DIR` (the package's `share/riggy`; the dev shell points it at the checkout), built into the program as well.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -18,6 +18,16 @@ const DEFAULT_MAPPINGS: [(&str, &str); 3] = [
     ("cyber_ver101", include_str!("../assets/avatars/cyber_ver101.toml")),
     ("Ballytic813c_Reforged_ByLio3DW", include_str!("../assets/avatars/Ballytic813c_Reforged_ByLio3DW.toml")),
 ];
+
+/// Default calibration files built in, by pack and avatar (`clips::calibration`).
+const DEFAULT_CALIBRATIONS: [(&str, &str, &str); 1] = [("motifect_locomotion_complete_v1_0_fbx", "cyber_ver101", include_str!("../assets/animations/calibration/motifect_locomotion_complete_v1_0_fbx/cyber_ver101.toml"))];
+
+/// riggy's default calibration of the animation pack `pack` for the avatar `avatar`, if it has one.
+pub fn default_calibration(pack: &str, avatar: &str) -> Option<String> {
+    let file = defaults_dir().map(|dir| dir.join("assets/animations/calibration").join(pack).join(format!("{avatar}.toml")));
+    file.and_then(|file| std::fs::read_to_string(file).ok())
+        .or_else(|| DEFAULT_CALIBRATIONS.iter().find(|(p, a, _)| *p == pack && *a == avatar).map(|(_, _, text)| (*text).into()))
+}
 
 /// What a fresh user config holds: nothing but a pointer to the defaults.
 const USER_CONFIG_TEMPLATE: &str = "# Your riggy settings. Everything not set here comes from the defaults: riggy.toml in riggy's data folder (share/riggy in the package). Copy a setting from there to change it, e.g.\n#\n# [lipsync]\n# mode = \"text\"\n";

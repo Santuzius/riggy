@@ -18,6 +18,8 @@ bones = "upper"
 
 # While silent: now and then one clip, between pauses of riggy's own idle motion.
 [idle]
+# Loops whenever no other clip plays, in place of riggy's own idle motion (breathing, sway, head drift), where it is approved on the avatar. Fully, on all bones but the legs.
+base = "idle_neutral"
 clips = ["idle_looking_around", "idle_relaxed_weight_shift", "idle_neutral"]
 intensity = 0.6
 fade = 1.5

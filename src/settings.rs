@@ -36,6 +36,10 @@ pub struct Settings {
     pub mcp_instructions: bool,
     /// Whether the avatar plays the clips of the behaviour files.
     pub clips: bool,
+    /// Whether the behaviour also plays clips not approved on the avatar in their pack's calibration.
+    pub unapproved_in_behaviour: bool,
+    /// Whether the tray's Play animation menu also lists clips not approved on the avatar.
+    pub unapproved_in_list: bool,
 }
 
 impl Default for Settings {
@@ -54,6 +58,8 @@ impl Default for Settings {
             start_with_mcp: true,
             mcp_instructions: true,
             clips: true,
+            unapproved_in_behaviour: false,
+            unapproved_in_list: false,
         }
     }
 }
