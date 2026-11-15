@@ -97,6 +97,12 @@ impl Stance {
         self.feet.iter().any(|f| f.step.is_some())
     }
 
+    /// Angle the figure still has to turn, from the middle of its feet to the turn asked for, positive to the figure's left.
+    pub fn turning(&self) -> f32 {
+        let feet_heading = self.feet[0].heading + wrapped(self.feet[1].heading - self.feet[0].heading) / 2.0;
+        wrapped(self.wanted - feet_heading)
+    }
+
     /// Angle from the body to the middle of the feet, positive to the figure's left.
     fn feet_lag(&self) -> f32 {
         let feet_heading = self.feet[0].heading + wrapped(self.feet[1].heading - self.feet[0].heading) / 2.0;

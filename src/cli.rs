@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use riggy::install::{self, Installed};
+use riggy::install::{self, Installed, SkeletonMap};
 use riggy::speaker::{self, Speech};
 use riggy::{settings, speech_server};
 
@@ -77,7 +77,14 @@ pub fn install(files: &[PathBuf]) -> ExitCode {
             }
             Ok(Installed::Texture { avatar, path }) => println!("Installed a texture of {avatar:?} as {}", path.display()),
             Ok(Installed::Clothing { avatar, path }) => println!("Installed clothing of {avatar:?} as {}; name it in the mapping file under [[clothing]]", path.display()),
-            Ok(Installed::Animation { name, path }) => println!("Installed the animation {name:?} as {}", path.display()),
+            Ok(Installed::Animation { pack, name, path, skeleton }) => {
+                println!("Installed the animation {name:?} of {pack:?} as {}", path.display());
+                match skeleton {
+                    SkeletonMap::Fits => {}
+                    SkeletonMap::Added(path) => println!("  Added the bone map {}", path.display()),
+                    SkeletonMap::Missing(dir) => println!("  riggy does not know this skeleton; write a bone map for it into {} (see doc/animations.md)", dir.display()),
+                }
+            }
             Err(err) => {
                 eprintln!("riggy: {err}");
                 failed = true;

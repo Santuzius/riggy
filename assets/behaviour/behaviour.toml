@@ -1,0 +1,38 @@
+# How riggy's humanoid avatars use the installed animation clips (~/.local/share/riggy/animations/). A file <avatar>.toml next to this one changes single keys for that avatar, e.g. [talk] intensity = 0.3, or enabled = false. Changes take effect at once.
+#
+# A clip is named by its file name without .glb, or as "pack/clip" where two packs have one of that name. Clips that are not installed are left out; a set without any plays nothing, and the avatar moves as without clips.
+#
+# Every set has:
+#   intensity  how far the avatar follows the clip, from 0 (not at all) to 1 (fully); riggy's own idle motion stays on top
+#   fade       seconds a clip takes to blend in and out
+#   bones      "upper" (spine, head, arms, hands) or "all"; the legs and hips are best left to riggy's stance, which keeps the feet on the floor
+
+enabled = true
+
+# While riggy speaks: one clip after another, each from a random place in it.
+[talk]
+clips = ["07_01_002_talking normal", "07_02_002_talking_normal_01", "07_02_002_talking_normal_02"]
+intensity = 0.5
+fade = 0.8
+bones = "upper"
+
+# While silent: now and then one clip, between pauses of riggy's own idle motion.
+[idle]
+clips = ["idle_looking_around", "idle_relaxed_weight_shift", "idle_neutral", "07_01_004_Listing"]
+intensity = 0.6
+fade = 1.5
+bones = "upper"
+# Seconds between two clips, a random value in this range.
+pause = [10.0, 30.0]
+
+# When the avatar turns: the clip for the direction, while the feet step after the body.
+[turn]
+left = ["turn_left_90"]
+right = ["turn_right_90"]
+around = ["turn_180"]
+intensity = 0.8
+fade = 0.3
+bones = "upper"
+# Degrees left to turn from which a clip starts; from `around_angle` on, the clip for turning around.
+min_angle = 40.0
+around_angle = 135.0

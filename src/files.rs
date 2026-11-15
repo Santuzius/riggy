@@ -10,6 +10,9 @@ use std::path::{Path, PathBuf};
 /// The default settings, also built in for a riggy that runs without its data folder.
 const DEFAULT_CONFIG: &str = include_str!("../riggy.toml");
 /// Default mapping files built in, by model name.
+/// The behaviour file riggy starts with.
+pub const DEFAULT_BEHAVIOUR: &str = include_str!("../assets/behaviour/behaviour.toml");
+
 const DEFAULT_MAPPINGS: [(&str, &str); 3] = [
     ("cyborg_girl", include_str!("../assets/avatars/cyborg_girl.toml")),
     ("cyber_ver101", include_str!("../assets/avatars/cyber_ver101.toml")),
@@ -72,14 +75,34 @@ pub fn default_config() -> String {
     default_config_file().and_then(|file| std::fs::read_to_string(file).ok()).unwrap_or_else(|| DEFAULT_CONFIG.into())
 }
 
-/// The folder of the installed animation clips.
+/// The folder of the installed animation packs.
 pub fn animations_dir() -> PathBuf {
     data_dir().join("animations")
 }
 
-/// The file of the installed animation clip `name`.
-pub fn animation(name: &str) -> PathBuf {
-    animations_dir().join(format!("{name}.glb"))
+/// The folder of the animation pack `pack`: its clips in `assets/`, its bone maps in `skeletons/`.
+pub fn animation_pack(pack: &str) -> PathBuf {
+    animations_dir().join(pack)
+}
+
+/// The file of the installed clip `name` of `pack`.
+pub fn animation(pack: &str, name: &str) -> PathBuf {
+    animation_pack(pack).join("assets").join(format!("{name}.glb"))
+}
+
+/// The folder of the behaviour files: `behaviour.toml` for every avatar, `<avatar>.toml` for one.
+pub fn behaviour_dir() -> PathBuf {
+    data_dir().join("behaviour")
+}
+
+/// The behaviour file of every avatar.
+pub fn behaviour() -> PathBuf {
+    behaviour_dir().join("behaviour.toml")
+}
+
+/// The behaviour file of the avatar `name`, which overrides `behaviour.toml` key by key.
+pub fn avatar_behaviour(name: &str) -> PathBuf {
+    behaviour_dir().join(format!("{name}.toml"))
 }
 
 /// The folder of the models.
@@ -139,18 +162,19 @@ fn default_mapping(name: &str) -> Option<String> {
         .or_else(|| DEFAULT_MAPPINGS.iter().find(|(known, _)| *known == name).map(|(_, text)| (*text).into()))
 }
 
-/// Creates the user's config and the mapping file of `name` from the defaults where they are missing.
+/// Creates the user's config, the behaviour file and the mapping file of `name` from the defaults where they are missing.
 pub fn ensure_user_files(name: &str) -> io::Result<()> {
     write_new(&user_config(), USER_CONFIG_TEMPLATE)?;
+    write_new(&behaviour(), DEFAULT_BEHAVIOUR)?;
     if let Some(text) = default_mapping(name) {
         write_new(&mapping(name), &text)?;
     }
     Ok(())
 }
 
-/// Puts the user's config, every mapping file riggy has a default for, and the tray's choices back to the defaults. The replaced files are kept as `*.old` next to them.
+/// Puts the user's config, the behaviour file, every mapping file riggy has a default for, and the tray's choices back to the defaults. The replaced files are kept as `*.old` next to them.
 pub fn reset_to_defaults() -> io::Result<()> {
-    let mut files = vec![(user_config(), USER_CONFIG_TEMPLATE.to_string()), (config_dir().join("settings.toml"), String::new())];
+    let mut files = vec![(user_config(), USER_CONFIG_TEMPLATE.to_string()), (config_dir().join("settings.toml"), String::new()), (behaviour(), DEFAULT_BEHAVIOUR.to_string())];
     let avatars = data_dir().join("avatars");
     for entry in std::fs::read_dir(&avatars).into_iter().flatten().flatten() {
         let path = entry.path();

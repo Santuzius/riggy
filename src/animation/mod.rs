@@ -1,6 +1,7 @@
-//! Per-frame motion of the avatar. A humanoid stands on the floor, idles, blinks and moves its mouth to the viseme targets that lip sync (`crate::lipsync`) sets; a machine floats, spins and opens and glows while speaking.
+//! Per-frame motion of the avatar. A humanoid stands on the floor, plays animation clips as the behaviour files say, idles, blinks and moves its mouth to the viseme targets that lip sync (`crate::lipsync`) sets; a machine floats, spins and opens and glows while speaking.
 
 mod blink;
+mod clips;
 mod idle;
 mod machine;
 pub mod mouth;
@@ -12,6 +13,6 @@ pub struct AnimationPlugin;
 
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugins((stance::StancePlugin, idle::IdlePlugin, blink::BlinkPlugin, mouth::MouthPlugin, machine::MachinePlugin));
+        app.add_plugins((stance::StancePlugin, clips::ClipsPlugin, idle::IdlePlugin, blink::BlinkPlugin, mouth::MouthPlugin, machine::MachinePlugin));
     }
 }

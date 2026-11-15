@@ -18,7 +18,7 @@ pub struct IdlePlugin;
 
 impl Plugin for IdlePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (idle.in_set(AvatarSet::Pose), smile.in_set(AvatarSet::Express)));
+        app.add_systems(Update, (idle.in_set(AvatarSet::Pose).after(super::clips::ClipPose), smile.in_set(AvatarSet::Express)));
     }
 }
 

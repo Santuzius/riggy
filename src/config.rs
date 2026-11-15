@@ -291,7 +291,7 @@ fn apply_tray_choices(config: &mut Config, choices: &riggy::settings::Settings) 
 }
 
 /// Lays `over` onto `base`: tables merge key by key, everything else replaces.
-fn overlay(base: &mut toml::Table, over: toml::Table) {
+pub(crate) fn overlay(base: &mut toml::Table, over: toml::Table) {
     for (key, value) in over {
         match (base.get_mut(&key), value) {
             (Some(toml::Value::Table(inner)), toml::Value::Table(value)) => overlay(inner, value),
