@@ -31,6 +31,8 @@ pub struct ClothSpec {
     pub stiffness: f64,
     pub drag: f64,
     pub gravity: f64,
+    /// VRM humanoid bones whose binding of the garment moves to `bone`, so the garment's top does not follow them (e.g. the thighs).
+    pub release: Vec<String>,
     /// Radius of each chain joint for collisions.
     pub hit_radius: f64,
     /// Radii of the colliders on thighs and shins; 0 adds none.
@@ -39,7 +41,7 @@ pub struct ClothSpec {
 
 impl Default for ClothSpec {
     fn default() -> Self {
-        Self { material: String::new(), bone: "hips".into(), top: 0.0, chains: 8, uv: None, segments: 3, inset: 0.85, stiffness: 0.5, drag: 0.3, gravity: 0.3, hit_radius: 0.02, legs: [0.0; 2] }
+        Self { material: String::new(), bone: "hips".into(), top: 0.0, chains: 8, uv: None, release: Vec::new(), segments: 3, inset: 0.85, stiffness: 0.5, drag: 0.3, gravity: 0.3, hit_radius: 0.02, legs: [0.0; 2] }
     }
 }
 
@@ -290,6 +292,15 @@ fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, claimed: &[(String
     }
 
     // Skins: the joints that bind vertices (all but each chain's tail), with their inverse bind matrices.
+    // Each skin's slots of the released bones and of the anchor.
+    let mut released = std::collections::HashMap::new();
+    for &skin in &skins {
+        let joints = skin_joints(&glb.gltf, skin);
+        let slot = |node: usize| joints.iter().position(|&j| j == node).map(|s| s as u16);
+        let bones = spec.release.iter().map(|name| human_bone(&glb.gltf, name)).collect::<Result<Vec<_>, _>>()?;
+        released.insert(skin, (bones.into_iter().filter_map(slot).collect::<Vec<u16>>(), slot(anchor).expect("the anchor is in every garment skin")));
+    }
+
     let mut slots = std::collections::HashMap::new();
     for &skin in &skins {
         let mut matrices = inverse_bind_matrices(&glb.gltf, &glb.binary, &glb.gltf["skins"][skin])?;
@@ -316,7 +327,12 @@ fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, claimed: &[(String
         for (((p, joints), weights), uv) in positions.iter().zip(&old_joints).zip(&old_weights).zip(&uvs) {
             let v = bind_to_world[&part.skin].transform_point3(DVec3::from_array(*p));
             let mut influences: Vec<(u16, f64)> = joints.iter().zip(weights).map(|(&j, &w)| (j as u16, w)).collect();
-            if v.y < chains.top && takes(spec, claimed, &part.material, *uv) {
+            let ours = takes(spec, claimed, &part.material, *uv);
+            if ours {
+                let (bones, anchor) = &released[&part.skin];
+                influences.iter_mut().filter(|e| bones.contains(&e.0)).for_each(|e| e.0 = *anchor);
+            }
+            if v.y < chains.top && ours {
                 let share = chains.share(v.y);
                 influences.iter_mut().for_each(|e| e.1 *= 1.0 - share);
                 influences.extend(chains.binding(v).map(|((k, i), w)| (slots[&(part.skin, k, i)] as u16, w * share)));
