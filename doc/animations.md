@@ -49,10 +49,9 @@ riggy then calibrates every clip of that skeleton on it, for each avatar:
 - **Arms**: the line from shoulder to wrist hangs out from vertical as riggy's idle holds the arms (`[idle] arm_angle`) where the actor's hangs as in the neutral clip; each arm swings out about the shoulder by the difference, fully while it hangs down and not at all once raised to horizontal, so the hands stay clear of wide hips or a coat.
 - **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand.
 
-riggy keeps these values in one file per pack and avatar, `<pack>/calibration/<avatar>.toml`, written from the neutral clip and rewritten when the clip, the bone map or `arm_angle` change:
+riggy keeps these values in one file per pack and avatar, `<pack>/calibration/<avatar>.toml`:
 
 ```toml
-auto = true                  # false: riggy reads the values as set by hand
 neutral = "idle_neutral"
 approved = ["idle_neutral"]  # clips checked on this avatar: listed in the tray, played by the behaviour
 
@@ -68,7 +67,7 @@ z = 0.03
 arm_hang = 12.0              # degrees the avatar's arms hang out at ease
 ```
 
-Without a calibration file or neutral clip, the trunk and arms point where the actor's do; for such a pack a file with `auto = false` can be written by hand. riggy's default Motifect map names `idle_neutral`. While `auto = true`, riggy overwrites edited values under `[actor]` and `[avatar]` with the measured ones and keeps `approved`. A file it cannot read is left as it is: riggy reports the error and uses its default until the file is fixed.
+riggy reads the file as it is and never changes it, so values can be edited by hand. Where there is none, riggy copies its default (`assets/animations/calibration/<pack>/<avatar>.toml`), or, without one, measures the values on the neutral clip (riggy's default Motifect map names `idle_neutral`) and writes them once; after changing `arm_angle` or the neutral clip, delete the file to have it measured again. A file riggy cannot read is reported and its default used until the file is fixed. "Reset to defaults" in the tray puts every calibration back to riggy's default and keeps the old file as `*.old`. Without a calibration file or neutral clip, the trunk and arms point where the actor's do; for such a pack the file can be written by hand.
 
 Where the user has no file yet, riggy starts from its default in `assets/animations/calibration/<pack>/<avatar>.toml`, which keeps the `approved` list when riggy measures the values. A clip missing from `approved` is not offered in the tray's Play animation menu and not played by the behaviour; Advanced settings → "Show not approved animations in behaviour" and "… in the list" lift that.
 

@@ -5,7 +5,7 @@ How a clip from an animation pack is made to fit an avatar, one clip at a time, 
 ## Principles
 
 - Fixes go into the retargeting or into riggy's own motion, never into a single clip: every clip of a pack, and every pack with the same skeleton, takes the same fix.
-- What differs between characters is calibrated per pack and avatar from the pack's neutral clip (named by `neutral` in the bone map) and kept in `<pack>/calibration/<avatar>.toml`, not set by hand per avatar; a hand-set file (`auto = false`) is for packs without a neutral clip.
+- What differs between characters is calibrated per pack and avatar from the pack's neutral clip (named by `neutral` in the bone map) and kept in `<pack>/calibration/<avatar>.toml`, not set by hand per avatar; a hand-written file is for packs without a neutral clip.
 - riggy's own motion must not add to a clip's: each part of the idle motion gives way where a clip moves the same bones.
 
 ## Steps for one clip and avatar

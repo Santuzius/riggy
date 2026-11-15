@@ -1,6 +1,5 @@
-# riggy's posture calibration of this pack for one avatar (see doc/animations.md). While auto = true riggy fills it in from the neutral clip; set auto = false to keep values set by hand.
+# riggy's posture calibration of this pack for one avatar (see doc/animations.md). riggy reads it as it is; "Reset to defaults" in the tray puts the default back.
 
-auto = true
 neutral = "idle_neutral"
 approved = ["idle_neutral"]
 

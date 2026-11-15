@@ -7,7 +7,7 @@
 //! - `approved`: the pack's clips checked on this avatar; riggy lists only these in the tray and plays only these from the behaviour;
 //! - `avatar.arm_hang`: degrees the avatar's arms hang out at ease (riggy's `[idle] arm_angle`).
 //!
-//! riggy writes the file from the neutral clip while `auto = true` and rewrites it when the clip, the bone map or `arm_angle` change. With `auto = false` it reads the values as they are, so they can be set by hand, also for a pack without a neutral clip. A file riggy cannot read is never rewritten; riggy reports the error and uses its default until the file is fixed. Where the user has no file yet, riggy starts from its default in `assets/animations/calibration/<pack>/<avatar>.toml`.
+//! riggy never changes the file once it is there, so its values can be edited by hand. Where the user has none, riggy copies its default from `assets/animations/calibration/<pack>/<avatar>.toml`, or, without one, measures the values on the neutral clip and writes them. A file riggy cannot read is reported and the default used until it is fixed. "Reset to defaults" in the tray puts the default back (keeping the old file as `*.old`).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -22,9 +22,6 @@ pub const TRUNK: [&str; 6] = ["hips", "spine", "chest", "upperChest", "neck", "h
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Calibration {
-    /// Whether riggy fills the file in from the neutral clip.
-    #[serde(default = "yes")]
-    pub auto: bool,
     /// The neutral clip the values come from.
     #[serde(default)]
     pub neutral: Option<String>,
@@ -35,10 +32,6 @@ pub struct Calibration {
     pub actor: Actor,
     #[serde(default)]
     pub avatar: Avatar,
-}
-
-fn yes() -> bool {
-    true
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
@@ -110,7 +103,7 @@ impl Calibration {
             (Some(l), Some(r)) => Some([l, r]),
             _ => None,
         };
-        Self { auto: true, neutral: Some(name.to_owned()), approved: Vec::new(), actor: Actor { posture, arm_hang: arm_hang_actor }, avatar: Avatar { arm_hang } }
+        Self { neutral: Some(name.to_owned()), approved: Vec::new(), actor: Actor { posture, arm_hang: arm_hang_actor }, avatar: Avatar { arm_hang } }
     }
 
     pub fn load(path: &Path) -> Option<Self> {
@@ -128,7 +121,7 @@ impl Calibration {
     }
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        let header = "# riggy's posture calibration of this pack for one avatar (see doc/animations.md). While auto = true riggy fills it in from the neutral clip; set auto = false to keep values set by hand.\n\n";
+        let header = "# riggy's posture calibration of this pack for one avatar (see doc/animations.md). riggy reads it as it is; \"Reset to defaults\" in the tray puts the default back.\n\n";
         let text = toml::to_string_pretty(self).map_err(std::io::Error::other)?;
         std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
         std::fs::write(path, format!("{header}{text}"))
@@ -159,7 +152,7 @@ mod tests {
     #[test]
     fn a_turn_survives_the_file() {
         let q = Quat::from_euler(EulerRot::YXZ, 0.2, -0.1, 0.05);
-        let c = Calibration { auto: true, neutral: Some("idle".into()), approved: vec!["idle".into()], actor: Actor { posture: [("hips".to_owned(), Turn::of(q))].into(), arm_hang: Some([5.0, 6.0]) }, avatar: Avatar::default() };
+        let c = Calibration { neutral: Some("idle".into()), approved: vec!["idle".into()], actor: Actor { posture: [("hips".to_owned(), Turn::of(q))].into(), arm_hang: Some([5.0, 6.0]) }, avatar: Avatar::default() };
         let back: Calibration = toml::from_str(&toml::to_string_pretty(&c).unwrap()).unwrap();
         assert_eq!(back, c);
         assert!(back.actor.posture["hips"].quat().angle_between(q) < 1e-3);

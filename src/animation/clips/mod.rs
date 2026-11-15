@@ -127,35 +127,37 @@ fn listen(mut received: MessageReader<Received>, mut requests: ResMut<Requests>)
     }
 }
 
-/// The calibration of `file`'s pack for the avatar: its file as set by hand (`auto = false`), else measured on the neutral clip that `clip`'s bone map names and written to the file where it changed. `None` where there is neither.
+/// The calibration of `file`'s pack for the avatar: the user's file as it is; where there is none, riggy's default, else values measured on the neutral clip that `clip`'s bone map names, written to the file once. `None` where there is neither.
 fn calibration(library: &Library, file: &ClipFile, clip: &Clip) -> Option<Calibration> {
     let path = file.calibration_file(&library.avatar);
-    let stored = file.calibration(&library.avatar);
-    if let Some(c) = stored.as_ref().filter(|c| !c.auto) {
-        return Some(c.clone());
+    // The user's file, or the default while it cannot be read (riggy reports why and leaves it for the user to fix).
+    if path.exists() {
+        return file.calibration(&library.avatar);
     }
-    // A user's file riggy cannot read (a typo while editing) is left alone, so the edit is not lost; until it is fixed riggy uses its default.
-    if path.exists() && Calibration::load(&path).is_none() {
-        return stored;
+    let write = |text: &str| {
+        if let Err(err) = std::fs::create_dir_all(path.parent().unwrap_or(&path)).and_then(|_| std::fs::write(&path, text)) {
+            eprintln!("riggy: {}: {err}", path.display());
+        }
+    };
+    if let Some(text) = riggy::files::default_calibration(&file.pack, &library.avatar) {
+        write(&text);
+        return file.calibration(&library.avatar);
     }
-    let Some(name) = clip.neutral.as_deref() else { return stored };
+    let name = clip.neutral.as_deref()?;
     let found = clips::find(&library.clips, &format!("{}/{name}", file.pack)).or_else(|| clips::find(&library.clips, name));
     let neutral = match found.map(|n| Clip::load(&n.path, &n.skeletons_dir())) {
         Some(Ok(n)) => n,
         Some(Err(err)) => {
             eprintln!("riggy: neutral animation {name}: {err}");
-            return stored;
+            return None;
         }
         None => {
             eprintln!("riggy: the neutral animation {name} of {} is not installed; the trunk follows the actor's posture", file.key());
-            return stored;
+            return None;
         }
     };
-    let mut measured = Calibration::measure(&neutral, name, library.arm_angle);
-    measured.approved = stored.as_ref().map(|c| c.approved.clone()).unwrap_or_default();
-    if (stored.as_ref() != Some(&measured) || !path.exists())
-        && let Err(err) = measured.save(&path)
-    {
+    let measured = Calibration::measure(&neutral, name, library.arm_angle);
+    if let Err(err) = measured.save(&path) {
         eprintln!("riggy: {}: {err}", path.display());
     }
     Some(measured)

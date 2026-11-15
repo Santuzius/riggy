@@ -182,7 +182,7 @@ pub fn ensure_user_files(name: &str) -> io::Result<()> {
     Ok(())
 }
 
-/// Puts the user's config, the behaviour file, every mapping file riggy has a default for, and the tray's choices back to the defaults. The replaced files are kept as `*.old` next to them.
+/// Puts the user's config, the behaviour file, every mapping file riggy has a default for, the animation packs' calibrations, and the tray's choices back to the defaults. The replaced files are kept as `*.old` next to them.
 pub fn reset_to_defaults() -> io::Result<()> {
     let mut files = vec![(user_config(), USER_CONFIG_TEMPLATE.to_string()), (config_dir().join("settings.toml"), String::new()), (behaviour(), DEFAULT_BEHAVIOUR.to_string())];
     let avatars = data_dir().join("avatars");
@@ -191,6 +191,17 @@ pub fn reset_to_defaults() -> io::Result<()> {
         let name = path.file_stem().and_then(|s| s.to_str()).filter(|_| path.extension().is_some_and(|e| e == "toml"));
         if let Some(text) = name.and_then(default_mapping) {
             files.push((path, text));
+        }
+    }
+    // Each animation pack's calibrations: riggy's default where it has one; the others go, so riggy measures them again.
+    for pack in std::fs::read_dir(animations_dir()).into_iter().flatten().flatten() {
+        let Some(pack_name) = pack.file_name().to_str().map(str::to_owned) else { continue };
+        for entry in std::fs::read_dir(pack.path().join("calibration")).into_iter().flatten().flatten() {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "toml") {
+                let avatar = path.file_stem().and_then(|s| s.to_str()).unwrap_or_default();
+                files.push((path.clone(), default_calibration(&pack_name, avatar).unwrap_or_default()));
+            }
         }
     }
     for (file, text) in files {
