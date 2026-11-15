@@ -20,8 +20,10 @@ pub struct ClothSpec {
     pub bone: String,
     /// Height above the floor where the garment starts to swing.
     pub top: f64,
-    /// Chains around the body.
+    /// Chains around the body, or across the part `uv` selects.
     pub chains: usize,
+    /// Texture rectangle `[u0, v0, u1, v1]` selecting one part of the garment, such as a flap, which then swings on chains of its own; an entry without one takes the rest of the garment.
+    pub uv: Option<[f64; 4]>,
     /// Segments per chain.
     pub segments: usize,
     /// Share of the garment's distance from the body's axis at which the chains hang.
@@ -37,7 +39,7 @@ pub struct ClothSpec {
 
 impl Default for ClothSpec {
     fn default() -> Self {
-        Self { material: String::new(), bone: "hips".into(), top: 0.0, chains: 8, segments: 3, inset: 0.85, stiffness: 0.5, drag: 0.3, gravity: 0.3, hit_radius: 0.02, legs: [0.0; 2] }
+        Self { material: String::new(), bone: "hips".into(), top: 0.0, chains: 8, uv: None, segments: 3, inset: 0.85, stiffness: 0.5, drag: 0.3, gravity: 0.3, hit_radius: 0.02, legs: [0.0; 2] }
     }
 }
 
@@ -63,8 +65,9 @@ pub fn add_cloth(bytes: &[u8], specs: &[ClothSpec]) -> Result<Option<Vec<u8>>, S
     }
     let legs = specs.iter().map(|s| s.legs).fold([0.0f64; 2], |a, b| [a[0].max(b[0]), a[1].max(b[1])]);
     let group = add_leg_colliders(&mut glb, legs)?;
+    let claimed: Vec<(String, [f64; 4])> = specs.iter().filter_map(|s| s.uv.map(|uv| (s.material.clone(), uv))).collect();
     for (index, spec) in specs.iter().enumerate() {
-        add_garment(&mut glb, index, spec, group)?;
+        add_garment(&mut glb, index, spec, &claimed, group)?;
     }
     Ok(Some(glb.to_bytes()))
 }
@@ -118,6 +121,7 @@ fn add_leg_colliders(glb: &mut Glb, radii: [f64; 2]) -> Result<Option<usize>, St
 
 /// A skinned primitive of the garment: mesh index, primitive index and skin index.
 struct Part {
+    material: String,
     mesh: usize,
     primitive: usize,
     skin: usize,
@@ -131,16 +135,28 @@ fn garment_parts(gltf: &Value, material: &str) -> Vec<Part> {
         for (primitive, p) in gltf["meshes"][mesh as usize]["primitives"].as_array().into_iter().flatten().enumerate() {
             let name = p["material"].as_u64().and_then(|m| materials.get(m as usize)).and_then(|m| m["name"].as_str()).unwrap_or("");
             if name.starts_with(material) {
-                parts.push(Part { mesh: mesh as usize, primitive, skin: skin as usize });
+                parts.push(Part { material: name.to_owned(), mesh: mesh as usize, primitive, skin: skin as usize });
             }
         }
     }
     parts
 }
 
+/// Whether a vertex of a garment material `material` with texture coordinates `uv` belongs to `spec`, given the parts `claimed` (material, rectangle) by entries with a `uv`.
+fn takes(spec: &ClothSpec, claimed: &[(String, [f64; 4])], material: &str, uv: [f64; 2]) -> bool {
+    let inside = |r: [f64; 4]| (r[0]..=r[2]).contains(&uv[0]) && (r[1]..=r[3]).contains(&uv[1]);
+    match spec.uv {
+        Some(rect) => inside(rect),
+        None => !claimed.iter().any(|(prefix, rect)| material.starts_with(prefix.as_str()) && inside(*rect)),
+    }
+}
+
 /// Where the chains hang: `positions[chain][joint]` in world space, top joint first.
 struct Chains {
     positions: Vec<Vec<DVec3>>,
+    /// Heading of each chain; around the body when `closed`, else across one part.
+    angles: Vec<f64>,
+    closed: bool,
     center: DVec3,
     top: f64,
     segment: f64,
@@ -150,15 +166,25 @@ impl Chains {
     /// Chains around the vertical axis through `center`, each just inside the garment whose rest positions are `vertices`.
     fn new(spec: &ClothSpec, center: DVec3, vertices: &[DVec3]) -> Result<Self, String> {
         let hem = vertices.iter().map(|v| v.y).fold(f64::MAX, f64::min);
-        if spec.top <= hem || spec.chains < 2 || spec.segments < 1 {
-            return Err(format!("cloth {}: top must lie above the hem ({hem:.3}), with at least 2 chains of 1 segment", spec.material));
+        let closed = spec.uv.is_none();
+        if vertices.is_empty() || spec.top <= hem || spec.chains < if closed { 2 } else { 1 } || spec.segments < 1 {
+            return Err(format!("cloth {}: top must lie above the hem ({hem:.3}), with at least 1 segment and 2 chains around the body or 1 across a part", spec.material));
         }
         let segment = (spec.top - hem) / spec.segments as f64;
-        let sector = TAU / spec.chains as f64;
+        // A part spans the headings of its vertices below the top; its chains sit in the middles of equal slices of that span.
+        let (start, width) = if closed {
+            (0.0, TAU)
+        } else {
+            let headings: Vec<f64> = vertices.iter().filter(|v| v.y < spec.top).map(|v| heading(*v - center)).collect();
+            let low = headings.iter().copied().fold(f64::MAX, f64::min);
+            (low, headings.iter().copied().fold(f64::MIN, f64::max) - low)
+        };
+        let sector = width / spec.chains as f64;
+        let angles: Vec<f64> = (0..spec.chains).map(|k| start + if closed { k as f64 } else { k as f64 + 0.5 } * sector).collect();
         let widest = vertices.iter().map(|v| horizontal(*v - center).length()).fold(0.0, f64::max);
-        let positions = (0..spec.chains)
-            .map(|k| {
-                let angle = k as f64 * sector;
+        let positions = angles
+            .iter()
+            .map(|&angle| {
                 let mut radius = widest;
                 (0..=spec.segments)
                     .map(|i| {
@@ -172,16 +198,22 @@ impl Chains {
                     .collect()
             })
             .collect();
-        Ok(Self { positions, center, top: spec.top, segment })
+        Ok(Self { positions, angles, closed, center, top: spec.top, segment })
     }
 
     /// Chain and joint indices with weights for a vertex at `v` below the top: the two chains on either side, and on each the two joints above and below it.
     fn binding(&self, v: DVec3) -> [((usize, usize), f64); 4] {
         let chains = self.positions.len();
         let segments = self.positions[0].len() - 1;
-        let around = heading(v - self.center).rem_euclid(TAU) / (TAU / chains as f64);
-        let (k0, a) = (around.floor() as usize % chains, around.fract());
-        let k1 = (k0 + 1) % chains;
+        let (k0, a, k1) = if self.closed {
+            let around = heading(v - self.center).rem_euclid(TAU) / (TAU / chains as f64);
+            (around.floor() as usize % chains, around.fract(), (around.floor() as usize + 1) % chains)
+        } else {
+            // Across a part: beyond the outer chains a vertex follows the outer one.
+            let spacing = if chains > 1 { self.angles[1] - self.angles[0] } else { 1.0 };
+            let around = ((heading(v - self.center) - self.angles[0]) / spacing).clamp(0.0, (chains - 1) as f64);
+            (around.floor() as usize, around.fract(), (around.floor() as usize + 1).min(chains - 1))
+        };
         let down = ((self.top - v.y) / self.segment - 0.5).clamp(0.0, (segments - 1) as f64);
         let (i0, f) = (down.floor() as usize, down.fract());
         let i1 = (i0 + 1).min(segments - 1);
@@ -208,7 +240,7 @@ fn wrapped(radians: f64) -> f64 {
     (radians + PI).rem_euclid(TAU) - PI
 }
 
-fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, colliders: Option<usize>) -> Result<(), String> {
+fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, claimed: &[(String, [f64; 4])], colliders: Option<usize>) -> Result<(), String> {
     let parts = garment_parts(&glb.gltf, &spec.material);
     if parts.is_empty() {
         return Err(format!("cloth: no skinned material whose name starts with {}", spec.material));
@@ -231,7 +263,9 @@ fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, colliders: Option<
     let mut vertices = Vec::new();
     for part in &parts {
         let positions: Vec<[f64; 3]> = read_accessor(&glb.gltf, &glb.binary, attribute(&glb.gltf, part, "POSITION")?)?;
-        vertices.extend(positions.iter().map(|p| bind_to_world[&part.skin].transform_point3(DVec3::from_array(*p))));
+        let uvs = texture_coordinates(&glb.gltf, &glb.binary, part, positions.len())?;
+        let taken = positions.iter().zip(&uvs).filter(|(_, uv)| takes(spec, claimed, &part.material, **uv));
+        vertices.extend(taken.map(|(p, _)| bind_to_world[&part.skin].transform_point3(DVec3::from_array(*p))));
     }
     let chains = Chains::new(spec, anchor_world.w_axis.truncate(), &vertices)?;
 
@@ -277,11 +311,12 @@ fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, colliders: Option<
         let positions: Vec<[f64; 3]> = read_accessor(&glb.gltf, &glb.binary, attribute(&glb.gltf, part, "POSITION")?)?;
         let old_joints: Vec<[f64; 4]> = read_accessor(&glb.gltf, &glb.binary, attribute(&glb.gltf, part, "JOINTS_0")?)?;
         let old_weights: Vec<[f64; 4]> = read_accessor(&glb.gltf, &glb.binary, attribute(&glb.gltf, part, "WEIGHTS_0")?)?;
+        let uvs = texture_coordinates(&glb.gltf, &glb.binary, part, positions.len())?;
         let (mut joint_bytes, mut weight_bytes) = (Vec::new(), Vec::new());
-        for ((p, joints), weights) in positions.iter().zip(&old_joints).zip(&old_weights) {
+        for (((p, joints), weights), uv) in positions.iter().zip(&old_joints).zip(&old_weights).zip(&uvs) {
             let v = bind_to_world[&part.skin].transform_point3(DVec3::from_array(*p));
             let mut influences: Vec<(u16, f64)> = joints.iter().zip(weights).map(|(&j, &w)| (j as u16, w)).collect();
-            if v.y < chains.top {
+            if v.y < chains.top && takes(spec, claimed, &part.material, *uv) {
                 let share = chains.share(v.y);
                 influences.iter_mut().for_each(|e| e.1 *= 1.0 - share);
                 influences.extend(chains.binding(v).map(|((k, i), w)| (slots[&(part.skin, k, i)] as u16, w * share)));
@@ -312,6 +347,14 @@ fn add_garment(glb: &mut Glb, index: usize, spec: &ClothSpec, colliders: Option<
         .collect();
     spring_bone(&mut glb.gltf)["springs"].as_array_mut().unwrap().extend(springs);
     Ok(())
+}
+
+/// The texture coordinates of a part's vertices; zeros if it has none.
+fn texture_coordinates(gltf: &Value, binary: &[u8], part: &Part, count: usize) -> Result<Vec<[f64; 2]>, String> {
+    match attribute(gltf, part, "TEXCOORD_0") {
+        Ok(accessor) => read_accessor(gltf, binary, accessor),
+        Err(_) => Ok(vec![[0.0; 2]; count]),
+    }
 }
 
 fn skin_joints(gltf: &Value, skin: usize) -> Vec<usize> {

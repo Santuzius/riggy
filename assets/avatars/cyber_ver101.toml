@@ -19,3 +19,18 @@ legs = [0.07, 0.06]
 [[cut]]
 material = "N00_007_01_Tops_01_CLOTH_01"
 uv = [0.445, 0.62, 0.555, 0.82]
+
+# The flap in the middle of the front (picked by its texture area) swings on stiffer chains of its own.
+[[cloth]]
+material = "N00_007_01_Tops_01_CLOTH_02"
+uv = [0.452, 0.45, 0.548, 0.8]
+bone = "hips"
+top = 0.85
+chains = 2
+segments = 3
+inset = 1.0
+stiffness = 1.2
+drag = 0.5
+gravity = 0.3
+hit_radius = 0.02
+legs = [0.07, 0.06]
