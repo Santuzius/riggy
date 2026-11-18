@@ -1,6 +1,6 @@
 //! The avatar's sockets: speech comes in on one, commands from the tray on the other.
 //!
-//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}`, `{"clips":false}`, `{"unapproved":true}`, `{"clip_legs":true}`, `{"play":"pack/clip"}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
+//! The control socket takes one JSON command per line, e.g. `{"click_through":true}`, `{"lipsync":"text"}`, `{"zoom":0.5}`, `{"turn":-20.0}`, `{"clips":false}`, `{"unapproved":true}`, `{"clip_legs":true}`, `{"play":"pack/clip"}`, `{"hold":{"clip":"pack/clip","at":1.5}}` or `"quit"`. It sits next to the speech socket: `riggy.sock` has `riggy-control.sock`.
 
 use std::io::{self, Write};
 use std::os::unix::net::UnixStream;
@@ -54,6 +54,8 @@ pub enum Command {
     ClipLegs(bool),
     /// Plays an installed clip once, by `pack/clip`, whether clips are on or not.
     Play(String),
+    /// Shows an installed clip, by `pack/clip`, frozen at `at` seconds, until another clip is played or held: for comparing one frame in the app with a check's report.
+    Hold { clip: String, at: f32 },
     /// Close the avatar.
     Quit,
 }
@@ -94,6 +96,7 @@ mod tests {
         assert_eq!(serde_json::to_string(&Command::Zoom(0.5)).unwrap(), r#"{"zoom":0.5}"#);
         assert_eq!(serde_json::to_string(&Command::Turn(-20.0)).unwrap(), r#"{"turn":-20.0}"#);
         assert_eq!(serde_json::to_string(&Command::Play("pack/wave".into())).unwrap(), r#"{"play":"pack/wave"}"#);
+        assert_eq!(serde_json::to_string(&Command::Hold { clip: "pack/wave".into(), at: 1.5 }).unwrap(), r#"{"hold":{"clip":"pack/wave","at":1.5}}"#);
         assert_eq!(serde_json::to_string(&Command::Quit).unwrap(), r#""quit""#);
     }
 

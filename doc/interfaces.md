@@ -35,4 +35,6 @@ The tray reaches the avatar through `$XDG_RUNTIME_DIR/riggy-control.sock`, next 
 | `{"lipsync":"text"}` | lip sync method `sound`, `rhubarb` or `text` from the next utterance on |
 | `{"zoom":0.5}` | framing from the whole figure (0) to the face (1) |
 | `{"turn":-20.0}` | turn of the figure in degrees, positive to its left |
+| `{"play":"pack/clip"}` | plays an installed clip once |
+| `{"hold":{"clip":"pack/clip","at":1.5}}` | shows an installed clip frozen at 1.5 s until another clip is played or held |
 | `"quit"` | closes the avatar |

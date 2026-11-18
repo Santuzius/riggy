@@ -110,11 +110,13 @@ struct Requests {
     /// Whether clips move the legs instead of riggy's stance.
     legs: bool,
     play: Vec<String>,
+    /// A clip to show frozen, and the second it is frozen at.
+    hold: Option<(String, f32)>,
 }
 
 impl Default for Requests {
     fn default() -> Self {
-        Self { clips_on: true, unapproved: false, legs: false, play: Vec::new() }
+        Self { clips_on: true, unapproved: false, legs: false, play: Vec::new(), hold: None }
     }
 }
 
@@ -125,6 +127,7 @@ fn listen(mut received: MessageReader<Received>, mut requests: ResMut<Requests>)
             Command::Unapproved(on) => requests.unapproved = *on,
             Command::ClipLegs(on) => requests.legs = *on,
             Command::Play(name) => requests.play.push(name.clone()),
+            Command::Hold { clip, at } => requests.hold = Some((clip.clone(), *at)),
             _ => {}
         }
     }
@@ -201,6 +204,8 @@ struct Layer {
     fade: f32,
     /// A turn clip's turn of the hips about the vertical (radians) handed to the stance when it began to fade out, and the clip's amount then.
     taken: Option<(f32, f32)>,
+    /// Shown frozen at `time`, fully, until another clip is asked for (`Command::Hold`).
+    held: bool,
 }
 
 /// How strongly the clips pose each part of an avatar now, from 0 to 1, on the avatar root: riggy's procedural idle motion of that part gives way by as much, so it does not add to the clip's. The stance, which keeps the feet on the floor, stays.
@@ -273,7 +278,7 @@ impl Player {
             layer.on = false;
             layer.fade = layer.fade.min(fade);
         }
-        self.layers.push(Layer { kind, clip, time, weight: 0.0, on: true, intensity: playing.intensity.clamp(0.0, 1.0), fade, taken: None });
+        self.layers.push(Layer { kind, clip, time, weight: 0.0, on: true, intensity: playing.intensity.clamp(0.0, 1.0), fade, taken: None, held: false });
         self.last = Some(name);
         true
     }
@@ -310,6 +315,7 @@ fn play(
         return;
     }
     let asked = std::mem::take(&mut requests.play);
+    let hold = requests.hold.take();
     for (entity, h, mut stance, player, cover) in &mut avatars {
         let (Some(mut player), Some(mut cover)) = (player, cover) else {
             commands.entity(entity).insert((Player::default(), ClipCover::default()));
@@ -320,6 +326,18 @@ fn play(
         }
         for name in &asked {
             if !player.start(&library, Kind::Asked, std::slice::from_ref(name), &ASKED, h, false) {
+                eprintln!("riggy: no animation {name}");
+            }
+        }
+        if let Some((name, at)) = &hold {
+            if player.start(&library, Kind::Asked, std::slice::from_ref(name), &ASKED, h, false) {
+                player.layers.retain(|l| l.on);
+                if let Some(layer) = player.layers.last_mut() {
+                    layer.held = true;
+                    layer.weight = 1.0;
+                    layer.time = at.clamp(0.0, layer.clip.duration());
+                }
+            } else {
                 eprintln!("riggy: no animation {name}");
             }
         }
@@ -354,9 +372,13 @@ fn play(
         // Without turn clips the stance turns and steps itself, also while the clips move the legs.
         let turn_clips = [&b.turn.left, &b.turn.right].iter().any(|names| names.iter().any(|n| clips::find(&library.clips, n).is_some()));
         for layer in &mut player.layers {
-            layer.time += dt;
-            if layer.time >= layer.clip.duration() - layer.fade {
-                layer.on = false;
+            if layer.held && layer.on {
+                // Frozen: no time passes and it stays fully in until another clip replaces it.
+            } else {
+                layer.time += dt;
+                if layer.time >= layer.clip.duration() - layer.fade {
+                    layer.on = false;
+                }
             }
             // A stepping turn hands its turn of the hips to the stance as it begins to fade out, so the avatar stays turned; the turn asked for becomes where the clip turned it, so no turn back follows.
             if legs_mode && layer.kind == Kind::Turn && !layer.on && layer.taken.is_none() {
