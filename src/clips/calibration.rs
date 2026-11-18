@@ -127,6 +127,14 @@ impl Calibration {
         Self { neutral: Some(name.to_owned()), approved: Vec::new(), actor: Actor { posture, arm_hang: arm_hang_actor }, avatar: Avatar { arm_hang } }
     }
 
+    /// The calibration of a clip whose pack has no neutral clip, measured on the clip itself: its mean posture stands in for the actor's natural one, which holds for clips where the actor mostly stands (talking, idling) and takes some of a lean that lasts the whole clip. The arm hang is left out: riggy keeps the arms out of the body frame by frame instead.
+    pub fn of_itself(clip: &Clip, arm_hang: f32) -> Self {
+        let mut c = Self::measure(clip, "", arm_hang);
+        c.neutral = None;
+        c.actor.arm_hang = None;
+        c
+    }
+
     pub fn load(path: &Path) -> Option<Self> {
         Self::parse(&std::fs::read_to_string(path).ok()?, &path.display().to_string())
     }

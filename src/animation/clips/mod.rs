@@ -149,17 +149,18 @@ fn calibration(library: &Library, file: &ClipFile, clip: &Clip) -> Option<Calibr
         write(&text);
         return file.calibration(&library.avatar);
     }
-    let name = clip.neutral.as_deref()?;
+    // Without a neutral clip, the clip's own mean posture stands in for the actor's (not written to the file).
+    let Some(name) = clip.neutral.as_deref() else { return Some(Calibration::of_itself(clip, library.arm_angle)) };
     let found = clips::find(&library.clips, &format!("{}/{name}", file.pack)).or_else(|| clips::find(&library.clips, name));
     let neutral = match found.map(|n| Clip::load(&n.path, &n.skeletons_dir())) {
         Some(Ok(n)) => n,
         Some(Err(err)) => {
-            eprintln!("riggy: neutral animation {name}: {err}");
-            return None;
+            eprintln!("riggy: neutral animation {name}: {err}; {} is calibrated on itself", file.key());
+            return Some(Calibration::of_itself(clip, library.arm_angle));
         }
         None => {
-            eprintln!("riggy: the neutral animation {name} of {} is not installed; the trunk follows the actor's posture", file.key());
-            return None;
+            eprintln!("riggy: the neutral animation {name} of {} is not installed; it is calibrated on itself", file.key());
+            return Some(Calibration::of_itself(clip, library.arm_angle));
         }
     };
     let measured = Calibration::measure(&neutral, name, library.arm_angle);
