@@ -4,6 +4,8 @@
 
 mod behaviour;
 mod clearance;
+#[cfg(test)]
+mod collisions;
 mod retarget;
 #[cfg(test)]
 mod sticks;

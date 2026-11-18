@@ -1,4 +1,4 @@
-//! For checking animations against their clips: with `RIGGY_POSE_LOG=FILE`, riggy writes the avatar-space position and the local rotation of every humanoid bone, as finally posed, ten times a second (every `RIGGY_POSE_LOG_STEP` seconds) to FILE (CSV: `time,bone,parent,x,y,z,qx,qy,qz,qw`, time in seconds since start). `tools/clip_shots.sh` sets it; `tools/clip_balance.py` and `tools/clip_sticks.py` read it.
+//! For checking animations against their clips: with `RIGGY_POSE_LOG=FILE`, riggy writes the avatar-space position and the local rotation of every humanoid bone, as finally posed, ten times a second (every `RIGGY_POSE_LOG_STEP` seconds) to FILE (CSV: `time,bone,parent,x,y,z,qx,qy,qz,qw`, time in seconds since start). The collision report reads the rotations (`app_collisions`). `tools/clip_shots.sh` sets it; `tools/clip_balance.py` and `tools/clip_sticks.py` read it.
 
 use std::io::Write;
 
