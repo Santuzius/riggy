@@ -2,6 +2,7 @@
 //!
 //! A clip is a GLB of a skeleton and one animation (written by `riggy install`, see `install::fbx`). A bone map ([`Skeleton`]) says which of its nodes is which humanoid bone; [`Clip::load`] reads a clip through the first map of its pack whose nodes all exist in it, and gives each mapped bone's avatar-space rotation in every frame.
 
+pub mod body;
 pub mod calibration;
 mod clip;
 pub mod rig;
