@@ -147,17 +147,7 @@ pub fn load_clip(name: &str) -> Clip {
 }
 
 pub fn load_rig(path: &str) -> Rig {
-    let path = path.replacen('~', &std::env::var("HOME").unwrap(), 1);
-    let bytes = std::fs::read(&path).unwrap();
-    if !path.ends_with(".glb") {
-        return Rig::from_vrm(&bytes).unwrap();
-    }
-    // A GLB avatar reads its bones, scale and rest corrections from riggy's mapping file of the same name.
-    let name = Path::new(&path).file_stem().unwrap().to_str().unwrap();
-    let text = std::fs::read_to_string(riggy::files::data_dir().join("avatars").join(format!("{name}.toml"))).unwrap();
-    let mapping: crate::avatar::glb::Mapping = toml::from_str(&text).unwrap();
-    let rest = mapping.rest.iter().map(|(n, d)| (n.clone(), Vec3::from(d.rotate))).collect();
-    Rig::from_glb(&bytes, &mapping.humanoid, mapping.scale, &rest).unwrap()
+    super::clearance::load_rig(Path::new(&path.replacen('~', &std::env::var("HOME").unwrap(), 1))).unwrap()
 }
 
 /// How far each shoulder line (shoulder to upper arm) is raised on the avatar in the clip `neutral` against its rest pose, in degrees, mean over the frames: left, right.

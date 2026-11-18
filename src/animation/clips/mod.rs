@@ -3,6 +3,7 @@
 //! A clip blends in and out over its set's `fade` and moves the avatar's bones only `intensity` of the way; riggy's procedural idle, stance and lip sync stay on top, except that the procedural arm pose gives way to a clip that moves the arms ([`ClipCover`]). Sets whose clips are not installed play nothing. The tray switches the behaviour's clips off and on (`Command::Clips`) and plays a single clip on request (`Command::Play`), also while they are off. The behaviour files, the installed clips and their bone maps are polled once a second; a change takes effect at once.
 
 mod behaviour;
+mod clearance;
 mod retarget;
 #[cfg(test)]
 mod sticks;
@@ -19,7 +20,7 @@ use riggy::clips::{self, Clip, ClipFile};
 
 use self::behaviour::{Behaviour, Bones, Playing};
 pub use self::retarget::parent as parent_bone;
-use self::retarget::{Retargeted, retarget};
+use self::retarget::{Retargeted, retarget, retarget_with};
 use riggy::clips::calibration::Calibration;
 use super::stance::Stance;
 use crate::avatar::{AvatarSet, Humanoid, HumanoidBone as B};
@@ -58,12 +59,14 @@ struct Library {
     files: Vec<(PathBuf, Option<SystemTime>)>,
     /// Counts the reloads, so avatars drop what they built from older files.
     generation: u32,
+    /// The avatar's body, for adapting clips to it; `None` where it could not be read.
+    clearance: Option<Arc<clearance::Clearance>>,
     timer: Timer,
 }
 
 impl FromWorld for Library {
     fn from_world(_: &mut World) -> Self {
-        Self { clips: Vec::new(), behaviour: Behaviour::default(), arm_angle: 0.0, avatar: String::new(), approved: Default::default(), files: Vec::new(), generation: 0, timer: Timer::from_seconds(1.0, TimerMode::Repeating) }
+        Self { clips: Vec::new(), behaviour: Behaviour::default(), arm_angle: 0.0, avatar: String::new(), approved: Default::default(), files: Vec::new(), generation: 0, clearance: None, timer: Timer::from_seconds(1.0, TimerMode::Repeating) }
     }
 }
 
@@ -91,6 +94,15 @@ fn reload(time: Res<Time>, config: Res<Config>, mut library: ResMut<Library>) {
     let (arm_angle, avatar) = (config.idle.arm_angle, &config.avatar.name);
     if !first && files == library.files && arm_angle == library.arm_angle && *avatar == library.avatar {
         return;
+    }
+    if first || *avatar != library.avatar || files != library.files {
+        library.clearance = match clearance::Clearance::load(&riggy::files::model(avatar)) {
+            Ok(c) => Some(Arc::new(c)),
+            Err(err) => {
+                eprintln!("riggy: the arms are not kept out of the body: {err}");
+                None
+            }
+        };
     }
     library.arm_angle = arm_angle;
     library.avatar = avatar.clone();
@@ -245,22 +257,35 @@ struct Player {
 impl Player {
     /// The clip `name` retargeted onto `h`, built once.
     fn clip(&mut self, library: &Library, name: &str, bones: Bones, legs: bool, h: &Humanoid) -> Option<Arc<Retargeted>> {
-        self.built
-            .entry((name.to_owned(), bones, legs))
-            .or_insert_with(|| {
-                let file = clips::find(&library.clips, name)?;
-                match Clip::load(&file.path, &file.skeletons_dir()) {
-                    Ok(clip) => {
-                        let calibration = calibration(library, file, &clip);
-                        Some(Arc::new(retarget(&clip, calibration.as_ref(), h, |b| bones.includes(b) && (legs || !is_leg(b)) && !is_face(b))))
-                    }
-                    Err(err) => {
-                        eprintln!("riggy: animation {}: {err}", file.key());
-                        None
-                    }
-                }
-            })
-            .clone()
+        let key = (name.to_owned(), bones, legs);
+        if let Some(built) = self.built.get(&key) {
+            return built.clone();
+        }
+        let built = self.build(library, name, bones, legs, h);
+        self.built.insert(key, built.clone());
+        built
+    }
+
+    fn build(&mut self, library: &Library, name: &str, bones: Bones, legs: bool, h: &Humanoid) -> Option<Arc<Retargeted>> {
+        let file = clips::find(&library.clips, name)?;
+        let clip = match Clip::load(&file.path, &file.skeletons_dir()) {
+            Ok(clip) => clip,
+            Err(err) => {
+                eprintln!("riggy: animation {}: {err}", file.key());
+                return None;
+            }
+        };
+        let calibration = calibration(library, file, &clip);
+        let include = |b| bones.includes(b) && (legs || !is_leg(b)) && !is_face(b);
+        let plain = retarget(&clip, calibration.as_ref(), h, include);
+        // Adapted to the avatar's body where the actor's slimmer one let the arms in (`clearance`).
+        let swings = library.clearance.as_ref().map(|c| c.swings(h, &plain)).unwrap_or_default();
+        if swings.is_empty() {
+            return Some(Arc::new(plain));
+        }
+        let most = swings.iter().flat_map(|s| s.iter()).copied().fold(0.0, f32::max);
+        eprintln!("riggy: animation {}: arms swung out by up to {:.0}° for the avatar's body", file.key(), most.to_degrees());
+        Some(Arc::new(retarget_with(&clip, calibration.as_ref(), h, include, &swings)))
     }
 
     /// Starts a random clip of `names` that is installed, another than the last one where there is a choice, and blends the others out over its fade or quicker.

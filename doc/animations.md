@@ -66,6 +66,10 @@ riggy then calibrates every clip of that skeleton on it, for each avatar:
 - **Arms**: the line from shoulder to wrist hangs out from vertical as riggy's idle holds the arms (`[idle] arm_angle`) where the actor's hangs as in the neutral clip; each arm swings out about the shoulder by the difference, fully while it hangs down and not at all once raised to horizontal, so the hands stay clear of wide hips or a coat.
 - **Legs** stay with riggy's stance, which bends them from the clip's pelvis to where the feet stand. The calibration also holds the actor's natural leg turns, so clips that move the legs can keep the avatar's own stance (straight legs, the feet flat or on their toes as the avatar is built). With Advanced settings → "Animations move the legs" every clip moves the legs instead, and riggy's stance (weight shift, feet kept on the floor, stepping after a turn) only poses them while no clip plays: in riggy's own idle and turning.
 
+The arms do not pass through the body. riggy builds the avatar's body from the model's mesh (one shape per bone, from the vertices that bone moves; hair, coat skirts and the bust, which hang on spring bones, do not count) and keeps the arms out of it:
+
+- **Adapting each clip** when riggy first plays it: an actor with slimmer hips or a slimmer trunk lets hands, forearms and fingers sink into the avatar's hips and legs and the upper arms into the side of its trunk, often for seconds. riggy swings each arm out at the shoulder in those frames, just far enough, moving out 0.3 s before and back 0.3 s after, smoothly. riggy's log names each adapted clip and its largest swing. A hand or forearm in front of the chest is a gesture a swing to the side would spoil and stays as the clip has it.
+
 riggy keeps these values in one file per pack and avatar, `<pack>/calibration/<avatar>.toml`:
 
 ```toml

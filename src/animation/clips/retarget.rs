@@ -165,6 +165,11 @@ fn aligned(from: Vec3, to: Vec3, widths: Option<(Vec3, Vec3)>) -> Quat {
 
 /// The clip `clip` as rotations of the bones `include` picks among those that both the avatar `h` and the clip have; `calibration` is the pack's posture calibration for the avatar ([`riggy::clips::calibration`]), without which trunk and arms point where the actor's do.
 pub fn retarget(clip: &Clip, calibration: Option<&Calibration>, h: &Humanoid, include: impl Fn(B) -> bool) -> Retargeted {
+    retarget_with(clip, calibration, h, include, &[])
+}
+
+/// [`retarget`] with each arm swung out at the shoulder by `extra` more radians per frame, left and right (none where `extra` is empty): how [`super::clearance`] keeps the arms out of the body.
+pub fn retarget_with(clip: &Clip, calibration: Option<&Calibration>, h: &Humanoid, include: impl Fn(B) -> bool, extra: &[[f32; 2]]) -> Retargeted {
     let bones: HashMap<B, &riggy::clips::ClipBone> = clip.bones.iter().filter_map(|(name, bone)| Some((name.parse::<B>().ok()?, bone))).filter(|(b, _)| h.get(*b).is_some()).collect();
     let shared = |b: B| bones.contains_key(&b);
     // The nearest shared bone along a direction, skipping bones one side lacks.
@@ -255,9 +260,13 @@ pub fn retarget(clip: &Clip, calibration: Option<&Calibration>, h: &Humanoid, in
     });
     let arm_swings: Vec<[Quat; 2]> = (0..clip.frames)
         .map(|f| {
-            std::array::from_fn(|side| match (hang[side], arm_line(side, f)) {
-                (Some(delta), Some(d)) => Quat::from_rotation_z(if side == 0 { 1.0 } else { -1.0 } * delta * (-d.y).max(0.0)),
-                _ => Quat::IDENTITY,
+            std::array::from_fn(|side| {
+                let more = extra.get(f).map_or(0.0, |e| e[side]);
+                let hang = match (hang[side], arm_line(side, f)) {
+                    (Some(delta), Some(d)) => delta * (-d.y).max(0.0),
+                    _ => 0.0,
+                };
+                Quat::from_rotation_z(if side == 0 { 1.0 } else { -1.0 } * (hang + more))
             })
         })
         .collect();
