@@ -40,7 +40,56 @@ pub struct ClipsPlugin;
 
 impl Plugin for ClipsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<Library>().init_resource::<Requests>().add_systems(Update, (reload, listen, play.in_set(AvatarSet::Pose).in_set(ClipPose)).chain());
+        app.init_resource::<Library>()
+            .init_resource::<Requests>()
+            .add_systems(Update, (reload, listen, play.in_set(AvatarSet::Pose).in_set(ClipPose)).chain())
+            .add_systems(Update, contact.after(AvatarSet::Apply).in_set(Contact));
+    }
+}
+
+/// Where riggy lands the arms on the body's surface, after the whole pose is built ([`clearance`]).
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Contact;
+
+/// Each arm bone's contact correction as last applied, on the avatar root.
+#[derive(Component, Default)]
+struct Applied(HashMap<B, Quat>);
+
+/// Seconds in which a joint's contact correction follows where it should be by about two thirds: quick enough to keep the arm on the surface, slow enough that it never jumps.
+pub(crate) const CONTACT_LAG: f32 = 0.08;
+
+/// Lands every avatar's arms on its body's surface instead of through it (not with `RIGGY_NO_CONTACT=1`, for comparing).
+fn contact(mut commands: Commands, time: Res<Time>, library: Res<Library>, mut avatars: Query<(Entity, &Humanoid, Option<&mut Applied>)>, mut transforms: Query<&mut Transform>) {
+    if std::env::var_os("RIGGY_NO_CONTACT").is_some() {
+        return;
+    }
+    let follow = 1.0 - (-time.delta_secs() / CONTACT_LAG).exp();
+    let Some(clearance) = library.clearance.clone() else { return };
+    for (entity, h, applied) in &mut avatars {
+        let Some(mut body) = applied else {
+            commands.entity(entity).insert(Applied::default());
+            continue;
+        };
+        let rotations: HashMap<B, Quat> = clearance.nodes.keys().filter_map(|&b| Some((b, transforms.get(h.get(b)?.entity).ok()?.rotation))).collect();
+        // Each bone's correction, as a turn before its own rotation; bones without one ease back to none.
+        let mut wanted: HashMap<B, Quat> = clearance.corrections(&rotations).into_iter().map(|(b, q)| (b, (q * rotations[&b].inverse()).normalize())).collect();
+        for &b in body.0.keys() {
+            wanted.entry(b).or_insert(Quat::IDENTITY);
+        }
+        let mut applied = HashMap::new();
+        for (b, target) in wanted {
+            let now = body.0.get(&b).copied().unwrap_or(Quat::IDENTITY).slerp(target, follow);
+            if now.angle_between(Quat::IDENTITY) < 1e-4 && target == Quat::IDENTITY {
+                continue;
+            }
+            if let (Some(pb), Some(&r)) = (h.get(b), rotations.get(&b)) {
+                if let Ok(mut t) = transforms.get_mut(pb.entity) {
+                    t.rotation = (now * r).normalize();
+                }
+            }
+            applied.insert(b, now);
+        }
+        body.0 = applied;
     }
 }
 
@@ -59,7 +108,7 @@ struct Library {
     files: Vec<(PathBuf, Option<SystemTime>)>,
     /// Counts the reloads, so avatars drop what they built from older files.
     generation: u32,
-    /// The avatar's body, for adapting clips to it; `None` where it could not be read.
+    /// The avatar's body, for adapting clips to it and the runtime contact; `None` where it could not be read.
     clearance: Option<Arc<clearance::Clearance>>,
     timer: Timer,
 }

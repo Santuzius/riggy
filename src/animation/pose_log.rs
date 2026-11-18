@@ -16,7 +16,7 @@ impl Plugin for PoseLogPlugin {
                 Ok(mut file) => {
                     let _ = writeln!(file, "time,bone,parent,x,y,z,qx,qy,qz,qw");
                     let step = std::env::var("RIGGY_POSE_LOG_STEP").ok().and_then(|s| s.parse().ok()).unwrap_or(0.1);
-                    app.insert_resource(PoseLog { file, next: 0.0, step }).add_systems(Update, log.after(AvatarSet::Apply));
+                    app.insert_resource(PoseLog { file, next: 0.0, step }).add_systems(Update, log.after(AvatarSet::Apply).after(super::clips::Contact));
                 }
                 Err(err) => error!("{}: {err}", path.display()),
             }
