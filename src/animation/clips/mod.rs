@@ -2,6 +2,7 @@
 //!
 //! A clip blends in and out over its set's `fade` and moves the avatar's bones only `intensity` of the way; riggy's procedural idle, stance and lip sync stay on top, except that the procedural arm pose gives way to a clip that moves the arms ([`ClipCover`]). Sets whose clips are not installed play nothing. The tray switches the behaviour's clips off and on (`Command::Clips`) and plays a single clip on request (`Command::Play`), also while they are off. The behaviour files, the installed clips and their bone maps are polled once a second; a change takes effect at once.
 
+mod balance;
 mod behaviour;
 mod clearance;
 #[cfg(test)]
@@ -45,6 +46,7 @@ impl Plugin for ClipsPlugin {
         app.init_resource::<Library>()
             .init_resource::<Requests>()
             .add_systems(Update, (reload, listen, play.in_set(AvatarSet::Pose).in_set(ClipPose)).chain())
+            .add_systems(Update, balance::balance.after(AvatarSet::Pose).before(AvatarSet::Express))
             .add_systems(Update, contact.after(AvatarSet::Apply).in_set(Contact));
     }
 }

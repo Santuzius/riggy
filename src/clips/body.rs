@@ -155,6 +155,11 @@ impl Part {
         (self.star_depth(p), self.nearest(p).map(|(v, n)| (v.distance(p), -(p - v).dot(n))))
     }
 
+    /// The part's vertices, in the bone's frame.
+    pub fn vertices(&self) -> impl Iterator<Item = Vec3> + '_ {
+        self.surface.iter().map(|&(v, _)| v)
+    }
+
     /// Number of surface vertices.
     pub fn surface_len(&self) -> usize {
         self.surface.len()
@@ -495,7 +500,7 @@ pub struct Penetration {
 }
 
 /// `transform` without its scale: a bone's frame in metres, whatever units the model's nodes use.
-fn rigid(transform: Affine3A) -> Affine3A {
+pub fn rigid(transform: Affine3A) -> Affine3A {
     let (_, rotation, translation) = transform.to_scale_rotation_translation();
     Affine3A::from_rotation_translation(rotation, translation)
 }

@@ -48,6 +48,17 @@ pub fn load_rig(path: &Path) -> Result<Rig, String> {
     Rig::from_glb(&bytes, &mapping.humanoid, mapping.scale, &rest)
 }
 
+/// Height, in metres, above the lowest point of the feet at rest up to which a foot's vertex counts to its sole.
+const SOLE: f32 = 0.005;
+
+/// Each foot's vertices within [`SOLE`] of the lowest point of both feet at rest, in the foot's frame.
+fn soles(body: &Body, rest: &[Affine3A], nodes: &HashMap<B, usize>) -> Vec<(B, Vec<Vec3>)> {
+    let feet: Vec<(B, &riggy::clips::body::Part)> = [B::LeftFoot, B::RightFoot].into_iter().filter_map(|b| { let node = *nodes.get(&b)?; Some((b, body.parts.iter().find(|p| p.node == node)?)) }).collect();
+    let frame = |part: &riggy::clips::body::Part| riggy::clips::body::rigid(rest[part.node]);
+    let lowest = feet.iter().flat_map(|(_, part)| part.vertices().map(|q| frame(part).transform_point3(q).y)).fold(f32::MAX, f32::min);
+    feet.iter().map(|&(b, part)| (b, part.vertices().filter(|&q| frame(part).transform_point3(q).y < lowest + SOLE).collect())).collect()
+}
+
 /// Humanoid bone → node in `rig`.
 fn nodes_of(rig: &Rig) -> HashMap<B, usize> {
     rig.humanoid.iter().filter_map(|(name, &node)| Some((name.parse::<B>().ok()?, node))).collect()
@@ -68,6 +79,8 @@ pub struct Clearance {
     bones: HashMap<usize, B>,
     /// For each arm, the pairs a clip is adapted for: its parts with the hips and legs, its upper arm with the trunk's side.
     adapt: [Vec<(usize, usize)>; 2],
+    /// Each foot's sole: its vertices on the floor at rest, in the foot's frame (metres, without scale).
+    pub soles: Vec<(B, Vec<Vec3>)>,
 }
 
 impl Clearance {
@@ -117,7 +130,13 @@ impl Clearance {
             pairs.extend(upper.into_iter().flat_map(|u| FLANKS.iter().filter_map(|n| index(n)).map(move |f| (u, f))));
             pairs
         });
-        Self { rig, body, rest, nodes, pairs, arm_nodes, bones, adapt }
+        let soles = soles(&body, &rest, &nodes);
+        Self { rig, body, rest, nodes, pairs, arm_nodes, bones, adapt, soles }
+    }
+
+    /// Rest position of a humanoid bone, in metres.
+    pub fn rest_position(&self, b: B) -> Option<Vec3> {
+        self.nodes.get(&b).map(|&n| self.rest[n].translation.into())
     }
 
     /// Every node's world transform at `frame` of `clip` on `h`, played fully.
