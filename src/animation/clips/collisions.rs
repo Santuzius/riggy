@@ -352,3 +352,12 @@ fn plain_local(rig: &Rig, worlds: &[Affine3A], n: usize) -> Quat {
     let parent = rig.parents[n].map_or(Quat::IDENTITY, |p| rotation(&worlds[p]));
     (parent.inverse() * rotation(&worlds[n])).normalize()
 }
+
+#[test]
+#[ignore = "reads the user's installed clips"]
+fn standing_clips() {
+    for file in riggy::clips::installed() {
+        let clip = riggy::clips::Clip::load(&file.path, &file.skeletons_dir()).unwrap();
+        println!("{:5} {}", riggy::clips::calibration::stands(&clip), file.key());
+    }
+}

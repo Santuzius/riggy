@@ -127,11 +127,14 @@ impl Calibration {
         Self { neutral: Some(name.to_owned()), approved: Vec::new(), actor: Actor { posture, arm_hang: arm_hang_actor }, avatar: Avatar { arm_hang } }
     }
 
-    /// The calibration of a clip whose pack has no neutral clip, measured on the clip itself: its mean posture stands in for the actor's natural one, which holds for clips where the actor mostly stands (talking, idling) and takes some of a lean that lasts the whole clip. The arm hang is left out: riggy keeps the arms out of the body frame by frame instead.
+    /// The calibration of a clip whose pack has no neutral clip, measured on the clip itself: its mean posture stands in for the actor's natural one, which holds for clips where the actor mostly stands (talking, idling) and takes some of a lean that lasts the whole clip. Where the actor does not stand (sits, kneels, lies), the hips and legs are left out, so they follow the actor's. The arm hang is left out: riggy keeps the arms out of the body frame by frame instead.
     pub fn of_itself(clip: &Clip, arm_hang: f32) -> Self {
         let mut c = Self::measure(clip, "", arm_hang);
         c.neutral = None;
         c.actor.arm_hang = None;
+        if !stands(clip) {
+            c.actor.posture.retain(|name, _| !(name == "hips" || name.ends_with("Leg") || name.ends_with("Foot") || name.ends_with("Toes")));
+        }
         c
     }
 
@@ -155,6 +158,19 @@ impl Calibration {
         std::fs::create_dir_all(path.parent().unwrap_or(Path::new(".")))?;
         std::fs::write(path, format!("{header}{text}"))
     }
+}
+
+/// Degrees beyond which a thigh, on average over a clip, is no longer taken for standing: a standing actor's thighs stay within about 20° of vertical, a sitting one's lie near horizontal.
+const STANDING_THIGH: f32 = 45.0;
+
+/// Whether the actor of `clip` stands: both thighs, on average over the clip, point down within [`STANDING_THIGH`] of vertical. A clip without legs counts as standing.
+pub fn stands(clip: &Clip) -> bool {
+    [["leftUpperLeg", "leftLowerLeg"], ["rightUpperLeg", "rightLowerLeg"]].iter().all(|[hip, knee]| {
+        let (Some(u), Some(l)) = (clip.bones.get(*hip), clip.bones.get(*knee)) else { return true };
+        let thigh = l.rest_position - u.rest_position;
+        let mean = (0..clip.frames).map(|f| (u.rotations[f] * u.rest_rotation.inverse() * thigh).normalize_or_zero()).sum::<Vec3>();
+        mean.normalize_or_zero().angle_between(Vec3::NEG_Y).to_degrees() < STANDING_THIGH
+    })
 }
 
 /// Radians a direction hangs out from vertical, seen from the front: towards the figure's left for the left arm (`side` 0), its right for the right arm.
