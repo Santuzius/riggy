@@ -16,6 +16,8 @@ const MARGIN: f32 = 0.25;
 const LAG: f32 = 0.3;
 /// Largest turn, in radians (about 8°).
 const MOST: f32 = 0.14;
+/// Share of the hips' height over the ankles at rest below which the figure is taken to sit, kneel or crouch, and is not balanced on its soles.
+const LOW: f32 = 0.75;
 /// Body segments: from joint, to joint (the first one the avatar has), share of the body's mass and the segment's centre as a fraction of the way between them (de Leva 1996, trunk as one segment).
 const SEGMENTS: [(B, &[B], f32, f32); 14] = [
     (B::Hips, &[B::UpperChest, B::Chest, B::Spine], 0.432, 0.5),
@@ -90,6 +92,11 @@ fn ankle_line(h: &Humanoid, tree: &Tree) -> Option<(Vec3, Vec3, Vec3)> {
 fn wanted_tilt(h: &Humanoid, clearance: &super::clearance::Clearance, tree: &Tree) -> Option<f32> {
     let at = |b: B| -> Option<Vec3> { Some(posed(h.get(b)?.entity, tree).translation.into()) };
     let (pivot, axis, forward) = ankle_line(h, tree)?;
+    // Sitting, kneeling or crouching low, the body rests on more than the soles: no turn.
+    let hips_over_ankles = |hips: Vec3, foot: Vec3| hips.y - foot.y;
+    if hips_over_ankles(at(B::Hips)?, pivot) < LOW * hips_over_ankles(h.position(B::Hips)?, h.position(B::LeftFoot)?) {
+        return Some(0.0);
+    }
 
     let (mut centre, mut mass) = (Vec3::ZERO, 0.0);
     for (from, to, share, fraction) in SEGMENTS {
